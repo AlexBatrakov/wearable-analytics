@@ -1,0 +1,18 @@
+[
+  {
+    "calendarDate": "2025-01-15",
+    "sleepStartTimestampGMT": 1736899200,
+    "sleepEndTimestampGMT": 1736928000,
+    "deepSleepSeconds": 7200,
+    "lightSleepSeconds": 14400,
+    "awakeSleepSeconds": 1200,
+    "unmeasurableSeconds": 600,
+    "averageRespiration": 12.3,
+    "lowestRespiration": 9.8,
+    "highestRespiration": 16.4,
+    "avgSleepStress": 18,
+    "sleepScores": {
+      "overallScore": 82
+    }
+  }
+]

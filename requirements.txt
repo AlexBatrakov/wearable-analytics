@@ -1,0 +1,7 @@
+pandas
+pyarrow
+orjson
+rich
+typer
+python-dotenv
+pytest

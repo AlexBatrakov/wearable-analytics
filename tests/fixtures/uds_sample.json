@@ -1,0 +1,24 @@
+[
+  {
+    "calendarDate": "2025-01-15",
+    "totalSteps": 12345,
+    "totalDistanceMeters": 8900,
+    "activeKilocalories": 650,
+    "bmrKilocalories": 1700,
+    "totalKilocalories": 2350,
+    "restingHeartRate": 52,
+    "minHeartRate": 45,
+    "maxHeartRate": 165,
+    "bodyBattery": {
+      "startOfDay": 78,
+      "endOfDay": 32,
+      "lowest": 25,
+      "highest": 85
+    },
+    "stressSummary": {
+      "awakeDuration": 3600,
+      "sleepDuration": 21600,
+      "totalDuration": 25200
+    }
+  }
+]
