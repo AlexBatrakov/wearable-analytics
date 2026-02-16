@@ -1,11 +1,12 @@
-# Garmin Wearable Analytics (v1)
+# Garmin Wearable Analytics
 
-This project ingests Garmin export data from a local folder and produces normalized parquet tables for daily summaries and sleep metrics.
+Ingest Garmin export data from a local folder and produce normalized parquet tables for daily summaries and sleep metrics.
 
 ## Privacy & data safety
-- Raw Garmin exports stay inside the repo for local convenience but are **never committed**.
-- The data folder is ignored via .gitignore.
-- See the pre-commit hook instructions below to add an extra safety net.
+- Raw Garmin exports stay local and are **never committed**.
+- The data folders are ignored via .gitignore.
+- Use the `sanitize` command before analysis or sharing.
+- See the pre-commit hook instructions below for an extra safety net.
 
 ## Project structure
 - Source code: src/garmin_analytics
@@ -13,7 +14,7 @@ This project ingests Garmin export data from a local folder and produces normali
 - Intermediate outputs (ignored): data/interim
 - Processed outputs (ignored): data/processed
 
-## Quickstart (macOS, Python 3.11+)
+## Setup (macOS, Python 3.11+)
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -21,11 +22,20 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+Environment configuration:
+- Copy .env.example to .env (optional) and set `GARMIN_EXPORT_DIR`.
+- Or export `GARMIN_EXPORT_DIR` in your shell.
+
 Set the export directory (optional):
 ```bash
 export GARMIN_EXPORT_DIR="data/raw/DI_CONNECT"
 ```
 If GARMIN_EXPORT_DIR is not set, the default is data/raw/DI_CONNECT.
+
+Check CLI help:
+```bash
+PYTHONPATH=src python -m garmin_analytics --help
+```
 
 Run the CLI (module mode):
 ```bash
@@ -48,8 +58,24 @@ garmin-analytics build-daily
 - data/processed/sleep.parquet
 - data/processed/daily.parquet
 
+## Sanitized outputs (safe for analysis/sharing)
+The processed parquet tables may contain personal identifiers (e.g. internal keys like `userProfilePK`, UUID/GUID-like values).
+
+Use the `sanitize` command to create "safe" copies with identifier columns removed:
+```bash
+PYTHONPATH=src python -m garmin_analytics sanitize
+```
+
+This writes (if inputs exist):
+- data/processed/daily_sanitized.parquet
+- data/processed/daily_uds_sanitized.parquet
+- data/processed/sleep_sanitized.parquet
+- data/processed/sanitize_report.json
+
+For analysis notebooks and sharing derived results, prefer the `*_sanitized.parquet` tables.
+
 ## Developer notes
-- Run tests: `pytest`
+- Run tests: `python -m pytest`
 - Add a new data source: create a parser under src/garmin_analytics/ingest and wire it into cli.py
 
 ## Data safety hook
@@ -77,6 +103,14 @@ Wrote <N> rows to data/processed/sleep.parquet
 ### build-daily
 ```text
 Wrote <N> rows to data/processed/daily.parquet
+```
+
+### sanitize
+```text
+Sanitized daily: <rows> rows, <before> → <after> cols (dropped <k>)
+Sanitized daily_uds: ...
+Sanitized sleep: ...
+Wrote report: data/processed/sanitize_report.json
 ```
 
 ## Pre-commit hook (extra safety)

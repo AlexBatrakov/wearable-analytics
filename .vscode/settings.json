@@ -1,0 +1,16 @@
+{
+    "python-envs.pythonProjects": [],
+    "terminal.integrated.shellIntegration.enabled": true,
+    "files.watcherExclude": {
+        "**/data/raw/**": true,
+        "**/data/interim/**": true,
+        "**/data/processed/**": true,
+        "**/DI_CONNECT/**": true
+    },
+    "search.exclude": {
+        "**/data/raw/**": true,
+        "**/data/interim/**": true,
+        "**/data/processed/**": true,
+        "**/DI_CONNECT/**": true
+    }
+}
