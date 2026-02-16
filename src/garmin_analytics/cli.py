@@ -9,6 +9,7 @@ from rich.console import Console
 
 from .ingest.sleep import parse_sleep_files
 from .ingest.uds import parse_uds_files
+from .sanitize import sanitize_parquet_file, write_sanitize_report
 from .util.io import (
     ensure_dir,
     get_export_dir,
@@ -136,3 +137,89 @@ def build_daily() -> None:
     output_path = processed_dir / "daily.parquet"
     daily.to_parquet(output_path, index=False, engine="pyarrow")
     _info(f"Wrote {len(daily)} rows to {output_path}")
+
+
+@app.command("sanitize")
+def sanitize(
+    input: Path = typer.Option(
+        None,
+        "--input",
+        help="Primary input parquet (default: data/processed/daily.parquet)",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        help="Primary output parquet (default: data/processed/daily_sanitized.parquet)",
+    ),
+    report: Path = typer.Option(
+        None,
+        "--report",
+        help="Write aggregated sanitize report JSON (default: data/processed/sanitize_report.json)",
+    ),
+    inplace: bool = typer.Option(
+        False,
+        "--inplace",
+        help="Replace input files in-place (overwrites the processed parquets)",
+    ),
+    allow_identifiers: bool = typer.Option(
+        False,
+        "--allow-identifiers",
+        help="Dangerous: allow identifier-like columns to remain (not recommended)",
+    ),
+) -> None:
+    """Create sanitized parquet outputs without personal identifiers."""
+    processed_dir = get_processed_dir()
+
+    default_daily_in = processed_dir / "daily.parquet"
+    default_daily_out = processed_dir / "daily_sanitized.parquet"
+    default_report = processed_dir / "sanitize_report.json"
+
+    primary_in = input or default_daily_in
+    if not primary_in.exists():
+        _info(f"Missing input: {primary_in}")
+        raise typer.Exit(code=1)
+
+    primary_out = primary_in if inplace else (output or default_daily_out)
+    report_path = report or default_report
+
+    # Always try to sanitize the standard processed tables if they exist.
+    candidates: list[tuple[str, Path, Path]] = []
+    seen_inputs: set[Path] = set()
+
+    def _add(label: str, in_path: Path, out_path: Path) -> None:
+        if in_path in seen_inputs:
+            return
+        seen_inputs.add(in_path)
+        candidates.append((label, in_path, out_path))
+
+    _add("daily", primary_in, primary_out)
+
+    uds_in = processed_dir / "daily_uds.parquet"
+    sleep_in = processed_dir / "sleep.parquet"
+    if uds_in.exists():
+        uds_out = uds_in if inplace else processed_dir / "daily_uds_sanitized.parquet"
+        _add("daily_uds", uds_in, uds_out)
+    if sleep_in.exists():
+        sleep_out = sleep_in if inplace else processed_dir / "sleep_sanitized.parquet"
+        _add("sleep", sleep_in, sleep_out)
+
+    aggregated: dict[str, object] = {"files": {}}
+
+    for label, in_path, out_path in candidates:
+        df = pd.read_parquet(in_path)
+        before_cols = df.shape[1]
+        before_rows = len(df)
+        file_report = sanitize_parquet_file(
+            in_path,
+            out_path,
+            allow_identifiers=allow_identifiers,
+        )
+        after_cols = file_report.get("cols_after", before_cols)
+        dropped = before_cols - int(after_cols)
+        _info(
+            f"Sanitized {label}: {before_rows} rows, {before_cols} → {after_cols} cols (dropped {dropped})"
+        )
+        aggregated["files"][label] = file_report
+
+    write_sanitize_report(report_path, aggregated)
+    _info(f"Wrote report: {report_path}")

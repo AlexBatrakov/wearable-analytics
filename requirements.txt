@@ -4,4 +4,3 @@ orjson
 rich
 typer
 python-dotenv
-pytest

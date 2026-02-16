@@ -22,6 +22,11 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+Optional dev/EDA dependencies:
+```bash
+pip install -r requirements-dev.txt
+```
+
 Environment configuration:
 - Copy .env.example to .env (optional) and set `GARMIN_EXPORT_DIR`.
 - Or export `GARMIN_EXPORT_DIR` in your shell.
@@ -75,8 +80,11 @@ This writes (if inputs exist):
 For analysis notebooks and sharing derived results, prefer the `*_sanitized.parquet` tables.
 
 ## Developer notes
-- Run tests: `python -m pytest`
+- Run tests: `python -m pytest` (requires requirements-dev.txt)
 - Add a new data source: create a parser under src/garmin_analytics/ingest and wire it into cli.py
+
+## Scripts
+Helper utilities for schema exploration and previews live under scripts/. They are optional and write only to data/interim (ignored by git). See scripts/README.md.
 
 ## Data safety hook
 See docs/precommit_hook.md for local pre-commit hook instructions.

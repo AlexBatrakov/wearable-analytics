@@ -1,0 +1,4 @@
+pytest
+matplotlib
+scikit-learn
+seaborn
