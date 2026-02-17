@@ -213,6 +213,7 @@ __marimo__/
 data/raw/**
 data/interim/**
 data/processed/**
+*.parquet
 
 # Garmin export folders (any depth)
 DI_CONNECT/**

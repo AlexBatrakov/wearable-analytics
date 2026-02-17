@@ -64,7 +64,7 @@ garmin-analytics build-daily
 - data/processed/daily.parquet
 
 ## Sanitized outputs (safe for analysis/sharing)
-The processed parquet tables may contain personal identifiers (e.g. internal keys like `userProfilePK`, UUID/GUID-like values).
+The processed parquet tables may contain personal identifier columns and GUID-like values.
 
 Use the `sanitize` command to create "safe" copies with identifier columns removed:
 ```bash
@@ -85,6 +85,49 @@ For analysis notebooks and sharing derived results, prefer the `*_sanitized.parq
 
 ## Scripts
 Helper utilities for schema exploration and previews live under scripts/. They are optional and write only to data/interim (ignored by git). See scripts/README.md.
+
+## Stage 1: Data dictionary
+Generate a column-level data dictionary (CSV + Markdown) from the aggregated daily table:
+```bash
+PYTHONPATH=src python -m garmin_analytics data-dictionary
+```
+
+## Stage 1.2: Data quality
+Label days as good/partial/bad with strict and loose thresholds, and export suspicious-day diagnostics:
+```bash
+PYTHONPATH=src python -m garmin_analytics quality
+```
+
+Defaults:
+- strict valid day: `quality_score >= 4`
+- loose valid day: `quality_score >= 3`
+
+Outputs:
+- `reports/quality_summary.md`
+- `reports/suspicious_days.csv`
+- `data/processed/daily_quality.parquet` (optional; disable with `--no-parquet`)
+
+## Stage 1 Results
+Stage 1 (data inventory + data quality) is complete.
+
+Headline metrics from current reports:
+- dataset rows: 580
+- date range: 2023-05-26 to 2026-02-05
+- strict labels: good 90.52%, partial 3.79%, bad 5.69%
+- loose labels: good 93.45%, partial 0.86%, bad 5.69%
+- corrupted stress-only days: 21 (3.62%)
+
+Interpretation note:
+- `corrupted_stress_only_day` marks artifact-like days with near-24h stress duration and no HR/sleep/body battery/steps signals; these are forced to `bad`.
+
+Reproducible commands:
+```bash
+PYTHONPATH=src python -m garmin_analytics data-dictionary
+PYTHONPATH=src python -m garmin_analytics quality
+```
+
+Local output note:
+- parquet outputs under `data/processed` are local and gitignored.
 
 ## Data safety hook
 See docs/precommit_hook.md for local pre-commit hook instructions.

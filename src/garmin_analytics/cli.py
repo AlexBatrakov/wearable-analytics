@@ -9,6 +9,14 @@ from rich.console import Console
 
 from .ingest.sleep import parse_sleep_files
 from .ingest.uds import parse_uds_files
+from .quality.quality import (
+    QualityConfig,
+    apply_quality_labels,
+    build_quality_summary_markdown,
+    build_suspicious_days,
+    write_quality_outputs,
+)
+from .reports.data_dictionary import DictionaryOptions, build_data_dictionary, write_dictionary_reports
 from .sanitize import sanitize_parquet_file, write_sanitize_report
 from .util.io import (
     ensure_dir,
@@ -223,3 +231,172 @@ def sanitize(
 
     write_sanitize_report(report_path, aggregated)
     _info(f"Wrote report: {report_path}")
+
+
+@app.command("data-dictionary")
+def data_dictionary(
+    input: Path = typer.Option(
+        None,
+        "--input",
+        help="Input parquet (default: daily_sanitized.parquet, fallback: daily.parquet)",
+    ),
+    out_dir: Path = typer.Option(
+        None,
+        "--out-dir",
+        help="Output directory for reports (default: reports)",
+    ),
+    max_sample_values: int = typer.Option(
+        5,
+        "--max-sample-values",
+        help="Max distinct example values per column",
+    ),
+) -> None:
+    """Generate a data dictionary report for the aggregated dataset."""
+    processed_dir = get_processed_dir()
+    default_in = processed_dir / "daily_sanitized.parquet"
+    fallback_in = processed_dir / "daily.parquet"
+    input_path = input or (default_in if default_in.exists() else fallback_in)
+
+    if not input_path.exists():
+        _info(f"Missing input: {input_path}")
+        raise typer.Exit(code=1)
+
+    output_dir = out_dir or (get_repo_root() / "reports")
+
+    df = pd.read_parquet(input_path)
+
+    def _log_ts_counts(label: str, frame: pd.DataFrame) -> None:
+        for col in ["sleepStartTimestampGMT", "sleepEndTimestampGMT"]:
+            if col in frame.columns:
+                _info(f"{label} {col} non-null: {int(frame[col].notna().sum())}")
+
+    _log_ts_counts("input", df)
+
+    if input is None and input_path == default_in and fallback_in.exists():
+        _log_ts_counts("daily_sanitized", df)
+        if all(
+            col in df.columns and int(df[col].notna().sum()) == 0
+            for col in ["sleepStartTimestampGMT", "sleepEndTimestampGMT"]
+        ):
+            daily_df = pd.read_parquet(fallback_in)
+            _log_ts_counts("daily", daily_df)
+            if any(
+                col in daily_df.columns and int(daily_df[col].notna().sum()) > 0
+                for col in ["sleepStartTimestampGMT", "sleepEndTimestampGMT"]
+            ):
+                _info(
+                    "Warning: daily_sanitized appears stale; using daily.parquet instead."
+                )
+                df = daily_df
+                input_path = fallback_in
+
+    if fallback_in.exists() and fallback_in != input_path:
+        daily_df = pd.read_parquet(fallback_in)
+        _log_ts_counts("daily", daily_df)
+
+    sleep_path = processed_dir / "sleep.parquet"
+    if sleep_path.exists():
+        sleep_df = pd.read_parquet(sleep_path)
+        _log_ts_counts("sleep", sleep_df)
+    dictionary_df = build_data_dictionary(df, max_sample_values=max_sample_values)
+    csv_path, md_path = write_dictionary_reports(
+        dictionary_df,
+        df,
+        output_dir,
+        options=DictionaryOptions(max_sample_values=max_sample_values),
+    )
+    _info(f"Wrote {csv_path}")
+    _info(f"Wrote {md_path}")
+
+
+@app.command("quality")
+def quality(
+    input: Path = typer.Option(
+        None,
+        "--input",
+        help="Input parquet (default: daily_sanitized.parquet, fallback: daily.parquet)",
+    ),
+    out_dir: Path = typer.Option(
+        None,
+        "--out-dir",
+        help="Output directory for reports (default: reports)",
+    ),
+    output_parquet: Path = typer.Option(
+        None,
+        "--output-parquet",
+        help="Output parquet path (default: data/processed/daily_quality.parquet)",
+    ),
+    no_parquet: bool = typer.Option(
+        False,
+        "--no-parquet",
+        help="Do not write parquet output",
+    ),
+    steps_min: int = typer.Option(50, "--steps-min", help="Minimum steps for has_steps"),
+    stress_any_hours: float = typer.Option(6.0, "--stress-any-hours", help="Minimum stress hours for has_stress_duration"),
+    stress_full_hours: float = typer.Option(20.0, "--stress-full-hours", help="Minimum stress hours for full_day_stress"),
+    strict_min_score: int = typer.Option(4, "--strict-min-score", help="Strict good-day threshold"),
+    loose_min_score: int = typer.Option(3, "--loose-min-score", help="Loose good-day threshold"),
+    top_n: int = typer.Option(50, "--top-n", help="Number of suspicious days to export"),
+) -> None:
+    """Compute day quality labels and export quality reports."""
+    processed_dir = get_processed_dir()
+    default_in = processed_dir / "daily_sanitized.parquet"
+    fallback_in = processed_dir / "daily.parquet"
+    input_path = input or (default_in if default_in.exists() else fallback_in)
+
+    if not input_path.exists():
+        _info(f"Missing input: {input_path}")
+        raise typer.Exit(code=1)
+
+    out_path = out_dir or (get_repo_root() / "reports")
+    parquet_path = output_parquet or (processed_dir / "daily_quality.parquet")
+
+    config = QualityConfig(
+        steps_min=steps_min,
+        stress_any_min_seconds=int(stress_any_hours * 3600),
+        stress_full_min_seconds=int(stress_full_hours * 3600),
+        strict_min_score=strict_min_score,
+        loose_min_score=loose_min_score,
+        top_n=top_n,
+    )
+
+    df = pd.read_parquet(input_path)
+    quality_df = apply_quality_labels(df, config)
+    suspicious_df = build_suspicious_days(quality_df, top_n=config.top_n)
+    summary_md = build_quality_summary_markdown(quality_df, input_path=input_path, config=config)
+
+    summary_path, suspicious_path, maybe_parquet = write_quality_outputs(
+        quality_df,
+        suspicious_df,
+        out_dir=out_path,
+        summary_markdown=summary_md,
+        output_parquet=parquet_path,
+        write_parquet=not no_parquet,
+    )
+
+    strict_dist = quality_df["day_quality_label_strict"].value_counts(dropna=False)
+    loose_dist = quality_df["day_quality_label_loose"].value_counts(dropna=False)
+    total = len(quality_df) or 1
+
+    def _pct(count: int) -> float:
+        return count / total * 100.0
+
+    _info(f"Input: {input_path}")
+    _info(f"Total days: {len(quality_df)}")
+    _info(
+        "Strict labels: "
+        f"good={_pct(int(strict_dist.get('good', 0))):.2f}% "
+        f"partial={_pct(int(strict_dist.get('partial', 0))):.2f}% "
+        f"bad={_pct(int(strict_dist.get('bad', 0))):.2f}%"
+    )
+    _info(
+        "Loose labels: "
+        f"good={_pct(int(loose_dist.get('good', 0))):.2f}% "
+        f"partial={_pct(int(loose_dist.get('partial', 0))):.2f}% "
+        f"bad={_pct(int(loose_dist.get('bad', 0))):.2f}%"
+    )
+    _info(f"Suspicious days exported: {len(suspicious_df)}")
+    _info(f"Wrote {summary_path}")
+    _info(f"Wrote {suspicious_path}")
+    if maybe_parquet is not None:
+        _info(f"Wrote {maybe_parquet}")
