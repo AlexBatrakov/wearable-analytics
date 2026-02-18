@@ -223,3 +223,6 @@ DI_CONNECT/**
 data/**/*.fit
 data/**/*.json
 data/**/*.csv
+
+# Exported notebook figures
+reports/figures/
