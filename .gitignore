@@ -224,5 +224,5 @@ data/**/*.fit
 data/**/*.json
 data/**/*.csv
 
-# Exported notebook figures
-notebooks/reports/figures/
+# Exported EDA figures
+reports/figures/
