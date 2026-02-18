@@ -17,7 +17,7 @@ PYTHONPATH=src python -m garmin_analytics --help
 - Raw Garmin exports are expected under `data/raw/DI_CONNECT` by default (`GARMIN_EXPORT_DIR` can override).
 - Generated artifacts are written under `data/interim`, `data/processed`, and `reports`.
 - `data/` is gitignored and must remain local.
-- Figures are exported locally to `reports/figures/...` and should not be committed.
+- Timeseries figures are exported locally to `reports/figures/timeseries/` and should not be committed.
 
 ## Stage 0 commands
 

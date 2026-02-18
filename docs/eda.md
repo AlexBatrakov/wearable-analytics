@@ -18,6 +18,7 @@ Questions answered:
 
 - File: `notebooks/02_eda_timeseries.ipynb`
 - Purpose: inspect trends, seasonality, anomalies, and feature interactions over time
+- Includes a dedicated "Sleep timeseries" section (sleep start time, duration, stage fractions, respiration, scores, avg sleep stress)
 
 Questions answered:
 - How do key health and activity signals evolve over the date range?
@@ -27,8 +28,9 @@ Questions answered:
 ## Figure export behavior
 
 The timeseries workflow supports a `SAVE_FIGS` toggle to export figures during notebook runs.
-Exported figures land under `reports/figures/...`.
+Exported figures for Notebook 02 land under `reports/figures/timeseries/`.
 Treat these as local, generated artifacts; they are intended to stay out of normal commits (`reports/figures/` is gitignored).
+Notebook 02 exports sleep-timeseries figures via the same toggle/mechanism when `SAVE_FIGS=True`.
 
 ## Planned notebook 03
 

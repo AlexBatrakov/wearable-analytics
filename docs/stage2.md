@@ -27,8 +27,12 @@ Current plots include:
 - stacked stress shares
 - resting HR
 - min/max HR
-- sleep score
-- sleep duration
+- sleep start time-of-day (local)
+- sleep duration (hours)
+- sleep stage fractions (stacked)
+- sleep respiration (lowest/average/highest)
+- sleep scores (overall/quality/duration-or-recovery)
+- avg sleep stress
 - body battery high/low
 - body battery range
 
