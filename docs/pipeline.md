@@ -40,15 +40,17 @@ Why this stage exists:
 2. `data-dictionary` writes column-level inventory reports:
    - `reports/data_dictionary.csv`
    - `reports/data_dictionary.md`
+   - `reports/data_dictionary_summary.md` (optional summary mode)
 3. `quality` writes quality diagnostics:
    - `reports/quality_summary.md`
    - `reports/suspicious_days.csv`
+   - `reports/suspicious_days_artifacts.csv` (artifact-focused ranking)
    - `data/processed/daily_quality.parquet` (written by default; disable with `--no-parquet`)
 
 Why this stage exists:
 - Enforces a privacy-first boundary through sanitized outputs.
 - Documents schema/semantics through data-dictionary reports.
-- Quantifies trustworthiness of each day via strict/loose quality labels.
+- Quantifies day-level analysis readiness (signal coverage) via strict/loose quality labels.
 
 ## EDA flow (Stage 2)
 

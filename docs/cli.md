@@ -130,16 +130,24 @@ Purpose: generate a column-level inventory report for the aggregated dataset.
 garmin-analytics data-dictionary
 ```
 
+Optional summary/full markdown modes:
+
+```bash
+garmin-analytics data-dictionary --markdown-mode both
+```
+
 Expected outputs:
 
 - `reports/data_dictionary.csv`
 - `reports/data_dictionary.md`
+- `reports/data_dictionary_summary.md` (only in `summary`/`both` mode)
 
 Expected output shape:
 
 ```text
 Wrote reports/data_dictionary.csv
 Wrote reports/data_dictionary.md
+Wrote reports/data_dictionary_summary.md
 ```
 
 ### quality
@@ -154,6 +162,7 @@ Expected outputs:
 
 - `reports/quality_summary.md`
 - `reports/suspicious_days.csv`
+- `reports/suspicious_days_artifacts.csv`
 - `data/processed/daily_quality.parquet` (written by default; disable with `--no-parquet`)
 
 Expected output shape:
@@ -166,6 +175,7 @@ Loose labels: good=<x>% partial=<y>% bad=<z>%
 Suspicious days exported: <K>
 Wrote reports/quality_summary.md
 Wrote reports/suspicious_days.csv
+Wrote reports/suspicious_days_artifacts.csv
 Wrote data/processed/daily_quality.parquet
 ```
 

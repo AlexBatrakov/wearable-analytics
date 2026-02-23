@@ -35,7 +35,9 @@ Sanitized outputs are the default boundary for analysis and sharing.
 	- `data/processed/sanitize_report.json`
 - **Reports / diagnostics (Stage 1)**
 	- `reports/data_dictionary.md`
+	- `reports/data_dictionary_summary.md` (optional summary mode)
 	- `reports/quality_summary.md`
+	- `reports/suspicious_days_artifacts.csv`
 	- `reports/suspicious_days.csv`
 - **Notebooks (Stage 2)**
 	- `notebooks/01_eda_prepare.ipynb`
