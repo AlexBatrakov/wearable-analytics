@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-- Docs: polished overview, pipeline, CLI, privacy, and Stage 0/1/2 + EDA pages for consistent run flow, outputs, and interpretation guidance.
+- Stage 2 (EDA): strengthened `notebooks/01_eda_prepare.ipynb` as a quality-aware entry point:
+  - explicit analysis contract (grain, slice semantics, quality-filter usage)
+  - canonical slice definitions and narrative guidance for downstream notebooks
+  - coverage-aware overview visuals (retention, strict vs loose labels, monthly key-signal coverage)
+  - GitHub-style day-level coverage/quality calendar heatmap with artifact highlighting
+- Docs: synced Stage 2 public docs/README with current Block A+B status and hybrid EDA workflow.
 
 ## Stage 0 (Discovery + Ingestion + Build)
 

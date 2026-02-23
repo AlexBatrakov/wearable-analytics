@@ -42,7 +42,7 @@ Sanitized outputs are the default boundary for analysis and sharing.
 - **Notebooks (Stage 2)**
 	- `notebooks/01_eda_prepare.ipynb`
 	- `notebooks/02_eda_timeseries.ipynb`
-	- Planned: notebook `03` (focused hypotheses + distributions/outliers)
+	- `notebooks/03_eda_distributions.ipynb` (in progress: distributions + relationships + artifact review + findings)
 
 ## Quick run
 

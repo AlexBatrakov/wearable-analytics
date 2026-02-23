@@ -54,9 +54,9 @@ Why this stage exists:
 
 ## EDA flow (Stage 2)
 
-- `notebooks/01_eda_prepare.ipynb` builds canonical EDA slices from sanitized + quality-enriched daily data.
+- `notebooks/01_eda_prepare.ipynb` defines the Stage 2 analysis contract, builds canonical EDA slices, and provides a coverage-aware overview (retention, label distribution, monthly signal coverage, day-level calendar heatmap).
 - `notebooks/02_eda_timeseries.ipynb` explores trends, anomalies, and time-series behavior.
-- Planned next: notebook `03` for focused hypothesis testing and summary reporting.
+- `notebooks/03_eda_distributions.ipynb` is the main in-progress notebook for distributions, relationships, artifact review, and findings/hypotheses.
 
 Why this stage exists:
 - Turns validated tables into interpretable patterns and decisions.

@@ -7,7 +7,7 @@ Use sanitized + quality-enriched datasets to keep analysis privacy-safe and inte
 
 - File: `notebooks/01_eda_prepare.ipynb`
 - Purpose: build canonical analysis slices from `daily_sanitized.parquet` + `daily_quality.parquet`
-- Typical outputs in-session: joined table checks, derived features, readiness summary
+- Typical outputs in-session: joined table checks, derived features, readiness summary, coverage-aware overview visuals (including a daily calendar heatmap)
 
 Questions answered:
 - Is the analysis table complete enough to proceed?
@@ -32,11 +32,11 @@ Exported figures for Notebook 02 land under `reports/figures/timeseries/`.
 Treat these as local, generated artifacts; they are intended to stay out of normal commits (`reports/figures/` is gitignored).
 Notebook 02 exports sleep-timeseries figures via the same toggle/mechanism when `SAVE_FIGS=True`.
 
-## Planned notebook 03
+## Notebook 03: distributions + relationships (in progress)
 
-Planned next step:
-- `notebooks/03_eda_hypotheses.ipynb` (name may vary)
-- Focus: targeted hypothesis checks, compact charts/tables, and decision-ready findings
+- File: `notebooks/03_eda_distributions.ipynb`
+- Purpose: extend EDA beyond timeseries into distributions, relationships, artifact review, and Stage 2 findings/hypotheses
+- Current status: notebook exists and is being built out iteratively
 
 See also:
 - [Stage 2 details](stage2.md)
