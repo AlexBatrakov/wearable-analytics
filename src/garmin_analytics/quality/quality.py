@@ -75,8 +75,18 @@ def apply_quality_labels(df: pd.DataFrame, config: QualityConfig) -> pd.DataFram
     out["has_stress_duration"] = ((stress_total.notna()) & (stress_total >= config.stress_any_min_seconds)).astype("boolean")
     out["full_day_stress"] = ((stress_total.notna()) & (stress_total >= config.stress_full_min_seconds)).astype("boolean")
 
+    out["has_bodybattery_start"] = (
+        out["bodyBatteryStartOfDay"].notna() if "bodyBatteryStartOfDay" in out.columns else pd.Series(False, index=out.index)
+    ).astype("boolean")
     out["has_bodybattery_end"] = (
         out["bodyBatteryEndOfDay"].notna() if "bodyBatteryEndOfDay" in out.columns else pd.Series(False, index=out.index)
+    ).astype("boolean")
+    out["has_bodybattery_any"] = (
+        _bool_series(out, "has_bodybattery_start", default=False) | _bool_series(out, "has_bodybattery_end", default=False)
+    ).astype("boolean")
+    out["bodybattery_start_without_end"] = (
+        _bool_series(out, "has_bodybattery_start", default=False)
+        & (~_bool_series(out, "has_bodybattery_end", default=False))
     ).astype("boolean")
 
     has_sleep_start = out["sleepStartTimestampGMT"].notna() if "sleepStartTimestampGMT" in out.columns else pd.Series(False, index=out.index)
@@ -154,7 +164,10 @@ def build_suspicious_days(quality_df: pd.DataFrame, top_n: int) -> pd.DataFrame:
         "has_steps",
         "has_hr",
         "has_stress_duration",
+        "has_bodybattery_start",
         "has_bodybattery_end",
+        "has_bodybattery_any",
+        "bodybattery_start_without_end",
         "has_sleep",
         "full_day_stress",
         "stressTotalDurationSeconds",
@@ -176,6 +189,64 @@ def build_suspicious_days(quality_df: pd.DataFrame, top_n: int) -> pd.DataFrame:
     return out[existing].reset_index(drop=True)
 
 
+def build_suspicious_days_artifacts(quality_df: pd.DataFrame, top_n: int) -> pd.DataFrame:
+    """Artifact-focused suspicious export.
+
+    Prioritizes rows that look like telemetry artifacts (e.g., high/full-day stress with
+    missing corroborating signals), rather than simply the sparsest rows.
+    """
+    out = quality_df.copy()
+    stress_total = _numeric(out["stressTotalDurationSeconds"]) if "stressTotalDurationSeconds" in out.columns else pd.Series([pd.NA] * len(out), index=out.index)
+    out["_sort_stress_desc"] = stress_total.fillna(-1)
+
+    corroborating_missing = pd.Series(0, index=out.index, dtype="int64")
+    for col in ["has_hr", "has_sleep", "has_bodybattery_end", "has_steps"]:
+        corroborating_missing = corroborating_missing + (~_bool_series(out, col, default=False).fillna(False)).astype(int)
+    out["_sort_missing_corroborating"] = corroborating_missing
+
+    out["_sort_corrupted"] = _bool_series(out, "corrupted_stress_only_day", default=False).fillna(False).astype(int)
+    out["_sort_full_stress"] = _bool_series(out, "full_day_stress", default=False).fillna(False).astype(int)
+
+    cols = [
+        "calendarDate",
+        "quality_score",
+        "day_quality_label_strict",
+        "day_quality_label_loose",
+        "corrupted_stress_only_day",
+        "has_steps",
+        "has_hr",
+        "has_stress_duration",
+        "has_bodybattery_start",
+        "has_bodybattery_end",
+        "has_bodybattery_any",
+        "bodybattery_start_without_end",
+        "has_sleep",
+        "full_day_stress",
+        "stressTotalDurationSeconds",
+        "totalSteps",
+        "minHeartRate",
+        "maxHeartRate",
+        "restingHeartRate",
+        "bodyBatteryStartOfDay",
+        "bodyBatteryEndOfDay",
+        "suspicion_reasons",
+    ]
+    existing = [c for c in cols if c in out.columns]
+
+    out = out.sort_values(
+        [
+            "_sort_corrupted",
+            "_sort_full_stress",
+            "_sort_missing_corroborating",
+            "_sort_stress_desc",
+            "quality_score",
+        ],
+        ascending=[False, False, False, False, True],
+    ).head(top_n)
+
+    return out[existing].reset_index(drop=True)
+
+
 def _label_table(series: pd.Series) -> pd.DataFrame:
     counts = series.value_counts(dropna=False)
     total = counts.sum()
@@ -184,18 +255,49 @@ def _label_table(series: pd.Series) -> pd.DataFrame:
     for label in order:
         count = int(counts.get(label, 0))
         pct = (count / total * 100.0) if total else 0.0
-        rows.append({"label": label, "count": count, "pct": pct})
+        rows.append({"label": label, "count": count, "pct": round(pct, 2)})
     return pd.DataFrame(rows)
 
 
 def _markdown_table(df: pd.DataFrame, columns: list[str]) -> str:
+    def _fmt(value: Any) -> str:
+        if pd.isna(value):
+            return ""
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
+
     header = "| " + " | ".join(columns) + " |"
     sep = "|" + "|".join([" --- "] * len(columns)) + "|"
     lines = [header, sep]
     for _, row in df.iterrows():
-        vals = [str(row.get(c, "")) for c in columns]
+        vals = [_fmt(row.get(c, "")) for c in columns]
         lines.append("| " + " | ".join(vals) + " |")
     return "\n".join(lines)
+
+
+def _reason_frequency_table(quality_df: pd.DataFrame, mask: pd.Series | None = None) -> pd.DataFrame:
+    if "suspicion_reasons" not in quality_df.columns:
+        return pd.DataFrame(columns=["reason", "count", "pct_of_rows"])
+
+    data = quality_df
+    if mask is not None:
+        data = quality_df.loc[mask.fillna(False)]
+
+    total_rows = len(data)
+    if total_rows == 0:
+        return pd.DataFrame(columns=["reason", "count", "pct_of_rows"])
+
+    counts: dict[str, int] = {}
+    for raw in data["suspicion_reasons"].fillna("").astype(str):
+        for reason in [token.strip() for token in raw.split(",") if token.strip()]:
+            counts[reason] = counts.get(reason, 0) + 1
+
+    rows = [
+        {"reason": reason, "count": count, "pct_of_rows": round(count / total_rows * 100.0, 2)}
+        for reason, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    ]
+    return pd.DataFrame(rows)
 
 
 def build_quality_summary_markdown(
@@ -222,6 +324,27 @@ def build_quality_summary_markdown(
             frac = float(_bool_series(quality_df, col, default=False).fillna(False).mean())
             coverage_rows.append({"flag": col, "fraction_true": round(frac, 4), "pct_true": round(frac * 100.0, 2)})
     coverage_tbl = pd.DataFrame(coverage_rows)
+
+    bb_patterns_tbl = pd.DataFrame(columns=["has_bodybattery_start", "has_bodybattery_end", "count", "pct"])
+    if "has_bodybattery_start" in quality_df.columns and "has_bodybattery_end" in quality_df.columns:
+        bb_start = _bool_series(quality_df, "has_bodybattery_start", default=False).fillna(False)
+        bb_end = _bool_series(quality_df, "has_bodybattery_end", default=False).fillna(False)
+        bb_patterns_tbl = (
+            pd.DataFrame({"has_bodybattery_start": bb_start.astype(int), "has_bodybattery_end": bb_end.astype(int)})
+            .value_counts(sort=True)
+            .reset_index(name="count")
+        )
+        total_rows = len(quality_df)
+        bb_patterns_tbl["pct"] = bb_patterns_tbl["count"].apply(
+            lambda count: round((count / total_rows * 100.0) if total_rows else 0.0, 2)
+        )
+
+    start_without_end_count = 0
+    start_without_end_pct = 0.0
+    if "bodybattery_start_without_end" in quality_df.columns:
+        bb_start_only = _bool_series(quality_df, "bodybattery_start_without_end", default=False).fillna(False)
+        start_without_end_count = int(bb_start_only.sum())
+        start_without_end_pct = float(bb_start_only.mean() * 100.0) if len(bb_start_only) else 0.0
 
     stress = _numeric(quality_df["stressTotalDurationSeconds"]) if "stressTotalDurationSeconds" in quality_df.columns else pd.Series(dtype=float)
     stress_hours = stress / 3600.0
@@ -259,6 +382,14 @@ def build_quality_summary_markdown(
             if not corrupted_dates.empty:
                 corrupted_range = f"{corrupted_dates.min().date()} to {corrupted_dates.max().date()}"
 
+    strict_bad_mask = (
+        (quality_df["day_quality_label_strict"] == "bad")
+        if "day_quality_label_strict" in quality_df.columns
+        else pd.Series(False, index=quality_df.index, dtype="boolean")
+    )
+    reason_freq_all_tbl = _reason_frequency_table(quality_df)
+    reason_freq_strict_bad_tbl = _reason_frequency_table(quality_df, strict_bad_mask)
+
     lines = [
         "# Quality Summary",
         "",
@@ -279,13 +410,28 @@ def build_quality_summary_markdown(
         "",
         _markdown_table(loose_tbl, ["label", "count", "pct"]),
         "",
+        "## Thresholds (current config)",
+        "",
+        f"- steps_min: {config.steps_min}",
+        f"- stress_any_min_seconds: {config.stress_any_min_seconds} ({config.stress_any_min_seconds / 3600:.1f}h)",
+        f"- stress_full_min_seconds: {config.stress_full_min_seconds} ({config.stress_full_min_seconds / 3600:.1f}h)",
+        f"- strict_min_score: {config.strict_min_score}",
+        f"- loose_min_score: {config.loose_min_score}",
+        "",
         "## Coverage metrics",
         "",
         _markdown_table(coverage_tbl, ["flag", "fraction_true", "pct_true"]) if not coverage_tbl.empty else "No coverage flags available.",
         "",
+        "## Body Battery coverage diagnostics",
+        "",
+        _markdown_table(bb_patterns_tbl, ["has_bodybattery_start", "has_bodybattery_end", "count", "pct"]) if not bb_patterns_tbl.empty else "No Body Battery diagnostics available.",
+        "",
+        f"- start present, end missing (`bodybattery_start_without_end`): {start_without_end_count} days ({start_without_end_pct:.2f}%)",
+        "- Interpretation: start-only Body Battery usually means the watch was worn earlier in the day but powered off before end-of-day, so coverage is partial rather than a parser failure.",
+        "",
         "## Stress duration summary",
         "",
-        f"- min/median/max hours: {stress_stats['min_hours']}, {stress_stats['median_hours']}, {stress_stats['max_hours']}",
+        f"- min/median/max hours: {stress_stats['min_hours']:.2f}, {stress_stats['median_hours']:.2f}, {stress_stats['max_hours']:.2f}" if stress_stats["min_hours"] is not None else "- min/median/max hours: n/a",
         f"- days with stressTotalDurationSeconds < 1h: {stress_stats['days_lt_1h']}",
         f"- days with stressTotalDurationSeconds < 6h: {stress_stats['days_lt_6h']}",
         f"- days with stressTotalDurationSeconds < 12h: {stress_stats['days_lt_12h']}",
@@ -302,10 +448,20 @@ def build_quality_summary_markdown(
         f"- percent: {corrupted_pct:.2f}%",
         f"- date range: {corrupted_range}",
         "",
+        "## Suspicion reason frequencies (all rows)",
+        "",
+        _markdown_table(reason_freq_all_tbl, ["reason", "count", "pct_of_rows"]) if not reason_freq_all_tbl.empty else "No suspicion reasons available.",
+        "",
+        "## Suspicion reason frequencies (strict bad rows)",
+        "",
+        _markdown_table(reason_freq_strict_bad_tbl, ["reason", "count", "pct_of_rows"]) if not reason_freq_strict_bad_tbl.empty else "No strict-bad rows.",
+        "",
         "## Notes",
         "",
         f"- Strict validity uses quality_score >= {config.strict_min_score}.",
         f"- Loose validity uses quality_score >= {config.loose_min_score}.",
+        "- Quality labels describe day-level analysis readiness / signal coverage, not medical-grade measurement quality.",
+        "- `has_bodybattery_end` is intentionally used (instead of any Body Battery presence) because end-of-day value is more useful for day-outcome analyses.",
         "- Missing sleep often indicates no night coverage for that date.",
     ])
     return "\n".join(lines) + "\n"
@@ -315,17 +471,23 @@ def write_quality_outputs(
     quality_df: pd.DataFrame,
     suspicious_df: pd.DataFrame,
     *,
+    suspicious_artifacts_df: pd.DataFrame | None = None,
     out_dir: Path,
     summary_markdown: str,
     output_parquet: Path,
     write_parquet: bool,
-) -> tuple[Path, Path, Path | None]:
+) -> tuple[Path, Path, Path | None, Path | None]:
     out_dir.mkdir(parents=True, exist_ok=True)
     summary_path = out_dir / "quality_summary.md"
     suspicious_path = out_dir / "suspicious_days.csv"
+    suspicious_artifacts_path = out_dir / "suspicious_days_artifacts.csv"
 
     summary_path.write_text(summary_markdown, encoding="utf-8")
     suspicious_df.to_csv(suspicious_path, index=False)
+    wrote_artifacts_path: Path | None = None
+    if suspicious_artifacts_df is not None:
+        suspicious_artifacts_df.to_csv(suspicious_artifacts_path, index=False)
+        wrote_artifacts_path = suspicious_artifacts_path
 
     parquet_path: Path | None = None
     if write_parquet:
@@ -333,4 +495,4 @@ def write_quality_outputs(
         quality_df.to_parquet(output_parquet, index=False, engine="pyarrow")
         parquet_path = output_parquet
 
-    return summary_path, suspicious_path, parquet_path
+    return summary_path, suspicious_path, parquet_path, wrote_artifacts_path

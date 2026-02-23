@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 
-from garmin_analytics.quality.quality import QualityConfig, apply_quality_labels, build_suspicious_days
+from garmin_analytics.quality.quality import (
+    QualityConfig,
+    apply_quality_labels,
+    build_quality_summary_markdown,
+    build_suspicious_days_artifacts,
+    build_suspicious_days,
+)
 
 
 def test_quality_flags_scores_and_labels() -> None:
@@ -61,6 +69,10 @@ def test_quality_flags_scores_and_labels() -> None:
     # Tolerance checks
     assert bool(out.loc[0, "stress_duration_matches_allDayStress_TOTAL"])
     assert not bool(out.loc[1, "stress_duration_matches_allDayStress_TOTAL"])
+    assert bool(out.loc[1, "has_bodybattery_start"])
+    assert not bool(out.loc[1, "has_bodybattery_end"])
+    assert bool(out.loc[1, "has_bodybattery_any"])
+    assert bool(out.loc[1, "bodybattery_start_without_end"])
 
 
 def test_quality_strict_vs_loose_and_suspicion_reasons() -> None:
@@ -110,3 +122,53 @@ def test_corrupted_stress_only_day_forced_bad() -> None:
     assert not bool(out.loc[0, "valid_day_strict"])
     assert not bool(out.loc[0, "valid_day_loose"])
     assert out.loc[0, "suspicion_reasons"].startswith("corrupted_stress_only_day")
+
+
+def test_quality_summary_markdown_includes_thresholds_and_reason_breakdown() -> None:
+    df = pd.DataFrame(
+        {
+            "calendarDate": ["2025-01-01", "2025-01-02", "2025-01-03"],
+            "totalSteps": [5000, 1000, None],
+            "minHeartRate": [45, None, None],
+            "stressTotalDurationSeconds": [80000, 30000, 86400],
+            "bodyBatteryStartOfDay": [80, 70, None],
+            "bodyBatteryEndOfDay": [25, None, None],
+            "sleepStartTimestampGMT": [1704067200, None, None],
+            "sleepEndTimestampGMT": [1704096000, None, None],
+        }
+    )
+    cfg = QualityConfig(strict_min_score=4, loose_min_score=3, top_n=10)
+    out = apply_quality_labels(df, cfg)
+
+    md = build_quality_summary_markdown(out, input_path=Path("dummy.parquet"), config=cfg)
+
+    assert "## Thresholds (current config)" in md
+    assert "## Body Battery coverage diagnostics" in md
+    assert "## Suspicion reason frequencies (all rows)" in md
+    assert "## Suspicion reason frequencies (strict bad rows)" in md
+    assert "analysis readiness / signal coverage" in md
+    assert "powered off before end-of-day" in md
+
+
+def test_artifact_suspicious_export_prioritizes_corrupted_days() -> None:
+    df = pd.DataFrame(
+        {
+            "calendarDate": ["2024-02-26", "2024-02-27", "2024-02-28"],
+            "totalSteps": [None, None, 5000],
+            "minHeartRate": [None, None, 45],
+            "maxHeartRate": [None, None, 160],
+            "restingHeartRate": [None, None, 52],
+            "stressTotalDurationSeconds": [86400, 76000, 76000],
+            "bodyBatteryStartOfDay": [None, 80, 85],
+            "bodyBatteryEndOfDay": [None, None, 20],
+            "sleepStartTimestampGMT": [None, None, 1704240000],
+            "sleepEndTimestampGMT": [None, None, 1704268800],
+        }
+    )
+    out = apply_quality_labels(df, QualityConfig(top_n=5))
+
+    art = build_suspicious_days_artifacts(out, top_n=3)
+    assert len(art) == 3
+    assert art.loc[0, "calendarDate"] == "2024-02-26"
+    assert bool(art.loc[0, "corrupted_stress_only_day"])
+    assert "bodybattery_start_without_end" in art.columns

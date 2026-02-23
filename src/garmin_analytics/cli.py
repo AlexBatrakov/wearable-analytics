@@ -14,6 +14,7 @@ from .quality.quality import (
     apply_quality_labels,
     build_quality_summary_markdown,
     build_suspicious_days,
+    build_suspicious_days_artifacts,
     write_quality_outputs,
 )
 from .reports.data_dictionary import DictionaryOptions, build_data_dictionary, write_dictionary_reports
@@ -287,8 +288,17 @@ def data_dictionary(
         "--max-sample-values",
         help="Max distinct example values per column",
     ),
+    markdown_mode: str = typer.Option(
+        "full",
+        "--markdown-mode",
+        help="Markdown output mode: full, summary, or both",
+    ),
 ) -> None:
     """Generate a data dictionary report for the aggregated dataset."""
+    if markdown_mode not in {"full", "summary", "both"}:
+        _info("Invalid --markdown-mode. Expected one of: full, summary, both")
+        raise typer.Exit(code=1)
+
     processed_dir = get_processed_dir()
     default_in = processed_dir / "daily_sanitized.parquet"
     fallback_in = processed_dir / "daily.parquet"
@@ -336,14 +346,18 @@ def data_dictionary(
         sleep_df = pd.read_parquet(sleep_path)
         _log_ts_counts("sleep", sleep_df)
     dictionary_df = build_data_dictionary(df, max_sample_values=max_sample_values)
-    csv_path, md_path = write_dictionary_reports(
+    csv_path, full_md_path, summary_md_path = write_dictionary_reports(
         dictionary_df,
         df,
         output_dir,
         options=DictionaryOptions(max_sample_values=max_sample_values),
+        markdown_mode=markdown_mode,
     )
     _info(f"Wrote {csv_path}")
-    _info(f"Wrote {md_path}")
+    if full_md_path is not None:
+        _info(f"Wrote {full_md_path}")
+    if summary_md_path is not None:
+        _info(f"Wrote {summary_md_path}")
 
 
 @app.command("quality")
@@ -400,11 +414,13 @@ def quality(
     df = pd.read_parquet(input_path)
     quality_df = apply_quality_labels(df, config)
     suspicious_df = build_suspicious_days(quality_df, top_n=config.top_n)
+    suspicious_artifacts_df = build_suspicious_days_artifacts(quality_df, top_n=config.top_n)
     summary_md = build_quality_summary_markdown(quality_df, input_path=input_path, config=config)
 
-    summary_path, suspicious_path, maybe_parquet = write_quality_outputs(
+    summary_path, suspicious_path, maybe_parquet, suspicious_artifacts_path = write_quality_outputs(
         quality_df,
         suspicious_df,
+        suspicious_artifacts_df=suspicious_artifacts_df,
         out_dir=out_path,
         summary_markdown=summary_md,
         output_parquet=parquet_path,
@@ -435,5 +451,7 @@ def quality(
     _info(f"Suspicious days exported: {len(suspicious_df)}")
     _info(f"Wrote {summary_path}")
     _info(f"Wrote {suspicious_path}")
+    if suspicious_artifacts_path is not None:
+        _info(f"Wrote {suspicious_artifacts_path}")
     if maybe_parquet is not None:
         _info(f"Wrote {maybe_parquet}")
