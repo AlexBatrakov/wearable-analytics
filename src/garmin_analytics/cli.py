@@ -44,6 +44,42 @@ def _info(message: str) -> None:
     console.print(message)
 
 
+def _normalize_and_validate_calendar_date(df: pd.DataFrame, *, label: str) -> None:
+    """Normalize and validate the calendarDate column in-place."""
+    if "calendarDate" not in df.columns:
+        _info(f"{label} is missing required column: calendarDate")
+        raise typer.Exit(code=1)
+
+    normalized = pd.to_datetime(df["calendarDate"], errors="coerce").dt.normalize()
+    invalid = int(normalized.isna().sum())
+    if invalid > 0:
+        _info(f"{label} has {invalid} invalid calendarDate values after parsing")
+        raise typer.Exit(code=1)
+
+    df["calendarDate"] = normalized
+
+
+def _assert_unique_calendar_date(df: pd.DataFrame, *, label: str) -> None:
+    """Fail fast if calendarDate is not unique before merge."""
+    duplicate_mask = df["calendarDate"].duplicated(keep=False)
+    if not bool(duplicate_mask.any()):
+        return
+
+    dup_rows = int(duplicate_mask.sum())
+    dup_dates = (
+        pd.to_datetime(df.loc[duplicate_mask, "calendarDate"], errors="coerce")
+        .dropna()
+        .drop_duplicates()
+        .sort_values()
+    )
+    examples = [str(ts.date()) for ts in dup_dates[:5]]
+    _info(
+        f"{label} has duplicate calendarDate rows ({dup_rows} rows across {len(dup_dates)} dates). "
+        f"Examples: {examples}"
+    )
+    raise typer.Exit(code=1)
+
+
 @app.command("discover")
 def discover() -> None:
     """Discover available Garmin export files and write inventory CSV."""
@@ -137,9 +173,10 @@ def build_daily() -> None:
     uds_df = pd.read_parquet(uds_path)
     sleep_df = pd.read_parquet(sleep_path)
 
-    for df in (uds_df, sleep_df):
-        if "calendarDate" in df.columns:
-            df["calendarDate"] = pd.to_datetime(df["calendarDate"], errors="coerce").dt.normalize()
+    _normalize_and_validate_calendar_date(uds_df, label="daily_uds.parquet")
+    _normalize_and_validate_calendar_date(sleep_df, label="sleep.parquet")
+    _assert_unique_calendar_date(uds_df, label="daily_uds.parquet")
+    _assert_unique_calendar_date(sleep_df, label="sleep.parquet")
 
     daily = pd.merge(uds_df, sleep_df, on="calendarDate", how="left", suffixes=("", "_sleep"))
     output_path = processed_dir / "daily.parquet"
