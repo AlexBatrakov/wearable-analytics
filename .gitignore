@@ -226,3 +226,7 @@ data/**/*.csv
 
 # Exported EDA figures
 reports/figures/
+
+# Internal markdown files for notes and documentation
+docs/AGENT_SOURCE_OF_TRUTH.md
+docs/internal/
