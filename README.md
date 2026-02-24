@@ -1,5 +1,7 @@
 # Garmin Wearable Analytics
 
+[![CI](https://github.com/AlexBatrakov/wearable-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexBatrakov/wearable-analytics/actions/workflows/ci.yml)
+
 Privacy-first Garmin data analytics pipeline for local exports.
 It discovers raw files, ingests and builds parquet datasets, applies sanitization and data quality checks, and supports EDA with notebooks.
 The focus is reproducible analytics without exposing personal identifiers.
