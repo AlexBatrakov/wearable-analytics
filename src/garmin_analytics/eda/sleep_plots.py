@@ -26,6 +26,11 @@ SCORE_BUCKETS: tuple[SleepScoreBucket, ...] = (
     SleepScoreBucket("unknown", "#7f7f7f"),
 )
 
+RAW_LINE_ALPHA = 0.25
+RAW_LINE_WIDTH = 0.8
+ROLL_LINE_ALPHA = 0.95
+ROLL_LINE_WIDTH = 2.0
+
 
 def _normalize_dates(frame: pd.DataFrame, date_col: str = "calendarDate") -> pd.DataFrame:
     out = frame.copy()
@@ -58,19 +63,21 @@ def _plot_with_rolling(
     if series.empty:
         return series
 
-    ax.plot(series.index, series.values, label=f"{label} (raw)", lw=1.0, alpha=0.8)
-    ax.plot(series.index, rolling_mean(series, window=rolling_days).values, label=f"{label} ({rolling_days}d)", lw=2.0)
+    ax.plot(series.index, series.values, label=f"{label} (raw)", lw=RAW_LINE_WIDTH, alpha=RAW_LINE_ALPHA)
+    ax.plot(series.index, rolling_mean(series, window=rolling_days).values, label=f"{label} ({rolling_days}d)", lw=ROLL_LINE_WIDTH, alpha=ROLL_LINE_ALPHA)
     return series
 
 
 def _bucket_name(score: float | None) -> str:
     if pd.isna(score):
         return "unknown"
-    if score < 50:
+    # Garmin sleep quality labels (official ranges):
+    # Excellent 90-100, Good 80-89, Fair 60-79, Poor < 60.
+    if score < 60:
         return "poor"
-    if score < 70:
+    if score < 80:
         return "fair"
-    if score < 85:
+    if score < 90:
         return "good"
     return "excellent"
 
@@ -97,6 +104,49 @@ def _parse_sleep_timestamp(series: pd.Series, local_tz) -> pd.Series:
     return pd.to_datetime(series, errors="coerce")
 
 
+def _parse_sleep_timestamp_utc_naive(series: pd.Series) -> pd.Series:
+    """Parse Garmin sleep timestamp fields (usually GMT) into UTC naive datetimes."""
+    numeric = pd.to_numeric(series, errors="coerce")
+    numeric_ratio = float(numeric.notna().mean()) if len(series) else 0.0
+    if numeric_ratio >= 0.8 and numeric.notna().any():
+        unit = _infer_epoch_unit(numeric)
+        return pd.to_datetime(numeric, unit=unit, errors="coerce", utc=True).dt.tz_localize(None)
+
+    # If textual timestamps are supplied, treat them as UTC for GMT-named columns.
+    parsed = pd.to_datetime(series, errors="coerce", utc=True)
+    if isinstance(parsed, pd.Series):
+        return parsed.dt.tz_localize(None)
+    return pd.Series(dtype="datetime64[ns]")
+
+
+def _garmin_local_offset_from_wellness(frame: pd.DataFrame) -> pd.Series:
+    """Derive per-row local offset from Garmin wellnessStart/End local-vs-gmt fields."""
+    pairs = [
+        ("wellnessStartTimeGmt", "wellnessStartTimeLocal"),
+        ("wellnessEndTimeGmt", "wellnessEndTimeLocal"),
+    ]
+    offsets: list[pd.Series] = []
+
+    for gmt_col, local_col in pairs:
+        if gmt_col not in frame.columns or local_col not in frame.columns:
+            continue
+        gmt_ts = pd.to_datetime(frame[gmt_col], errors="coerce")
+        local_ts = pd.to_datetime(frame[local_col], errors="coerce")
+        offsets.append(local_ts - gmt_ts)
+
+    if not offsets:
+        return pd.Series(pd.NaT, index=frame.index, dtype="timedelta64[ns]")
+
+    out = offsets[0]
+    for extra in offsets[1:]:
+        out = out.fillna(extra)
+
+    # Sanity guard: ignore implausible offsets.
+    bad = out.abs() > pd.Timedelta(hours=18)
+    out = out.mask(bad)
+    return out
+
+
 def _shifted_hour(series: pd.Series, anchor_hour: int = 16) -> pd.Series:
     hour = series.dt.hour + series.dt.minute / 60.0 + series.dt.second / 3600.0
     shifted = hour.copy()
@@ -116,6 +166,8 @@ def plot_sleep_intervals(
     *,
     anchor_hour: int = 16,
     score_col: str = "sleepOverallScore",
+    stick_lw: float = 1.2,
+    marker_size: float = 10.0,
     save_figs: bool = False,
     fig_dir: Path | str | None = None,
     fig_name: str = "sleep_intervals_sticks",
@@ -125,11 +177,32 @@ def plot_sleep_intervals(
         print("Skip: missing sleep interval columns")
         return None
 
-    frame = df_sleep[[*required, score_col] if score_col in df_sleep.columns else required].copy()
+    optional_cols = [c for c in ["wellnessStartTimeGmt", "wellnessStartTimeLocal", "wellnessEndTimeGmt", "wellnessEndTimeLocal"] if c in df_sleep.columns]
+    frame = df_sleep[[*required, *optional_cols, *([score_col] if score_col in df_sleep.columns else [])]].copy()
     local_tz = datetime.now().astimezone().tzinfo
     frame["calendarDate"] = pd.to_datetime(frame["calendarDate"], errors="coerce").dt.normalize()
-    frame["sleepStartTimestampGMT"] = _parse_sleep_timestamp(frame["sleepStartTimestampGMT"], local_tz=local_tz)
-    frame["sleepEndTimestampGMT"] = _parse_sleep_timestamp(frame["sleepEndTimestampGMT"], local_tz=local_tz)
+    # Parse GMT timestamps and convert to local wall time using Garmin-provided per-day local offset if available.
+    start_utc = _parse_sleep_timestamp_utc_naive(frame["sleepStartTimestampGMT"])
+    end_utc = _parse_sleep_timestamp_utc_naive(frame["sleepEndTimestampGMT"])
+    local_offset = _garmin_local_offset_from_wellness(frame)
+
+    if local_offset.notna().any():
+        frame["sleepStartTimestampGMT"] = start_utc + local_offset
+        frame["sleepEndTimestampGMT"] = end_utc + local_offset
+        missing_offset = local_offset.isna()
+        if bool(missing_offset.any()):
+            # Fallback row-wise to machine local conversion where Garmin local offset is unavailable.
+            frame.loc[missing_offset, "sleepStartTimestampGMT"] = _parse_sleep_timestamp(
+                frame.loc[missing_offset, "sleepStartTimestampGMT"],
+                local_tz=local_tz,
+            ).values
+            frame.loc[missing_offset, "sleepEndTimestampGMT"] = _parse_sleep_timestamp(
+                frame.loc[missing_offset, "sleepEndTimestampGMT"],
+                local_tz=local_tz,
+            ).values
+    else:
+        frame["sleepStartTimestampGMT"] = _parse_sleep_timestamp(frame["sleepStartTimestampGMT"], local_tz=local_tz)
+        frame["sleepEndTimestampGMT"] = _parse_sleep_timestamp(frame["sleepEndTimestampGMT"], local_tz=local_tz)
     frame = frame.dropna(subset=["calendarDate", "sleepStartTimestampGMT", "sleepEndTimestampGMT"]).sort_values("calendarDate")
 
     if frame.empty:
@@ -148,9 +221,9 @@ def plot_sleep_intervals(
         part = frame[frame["score_bucket"] == bucket.name]
         if part.empty:
             continue
-        ax.vlines(part["calendarDate"], part["start_h"], part["end_h"], color=bucket.color, lw=2.0, alpha=0.9)
-        ax.scatter(part["calendarDate"], part["start_h"], color=bucket.color, s=14, alpha=0.95)
-        ax.scatter(part["calendarDate"], part["end_h"], color=bucket.color, s=14, alpha=0.95)
+        ax.vlines(part["calendarDate"], part["start_h"], part["end_h"], color=bucket.color, lw=stick_lw, alpha=0.9)
+        ax.scatter(part["calendarDate"], part["start_h"], color=bucket.color, s=marker_size, alpha=0.95)
+        ax.scatter(part["calendarDate"], part["end_h"], color=bucket.color, s=marker_size, alpha=0.95)
 
     y_min = min(float(frame["start_h"].min()) - 0.25, float(anchor_hour) - 0.5)
     y_max = max(float(frame["end_h"].max()) + 0.25, float(anchor_hour) + 24.0)
@@ -198,6 +271,88 @@ def plot_sleep_duration(
     ax.set_xlabel("calendarDate")
     ax.set_ylabel("hours")
     ax.legend()
+    _finalize_figure(fig, save_figs=save_figs, fig_dir=fig_dir, fig_name=fig_name)
+    return None
+
+
+def plot_sleep_duration_scored(
+    df_sleep: pd.DataFrame,
+    *,
+    score_col: str = "sleepOverallScore",
+    rolling_days: int = 7,
+    cmap: str = "viridis",
+    save_figs: bool = False,
+    fig_dir: Path | str | None = None,
+    fig_name: str = "sleep_total_hours_scored",
+):
+    col = "sleep_total_hours" if "sleep_total_hours" in df_sleep.columns else None
+    if col is None and "sleep_total_seconds" in df_sleep.columns:
+        frame = df_sleep[["calendarDate", "sleep_total_seconds"]].copy()
+        frame["sleep_total_hours"] = pd.to_numeric(frame["sleep_total_seconds"], errors="coerce") / 3600.0
+        col = "sleep_total_hours"
+    elif col is not None:
+        keep = ["calendarDate", col]
+        if score_col in df_sleep.columns:
+            keep.append(score_col)
+        frame = df_sleep[keep].copy()
+    else:
+        print("Skip: missing sleep_total_seconds/sleep_total_hours")
+        return None
+
+    frame["calendarDate"] = pd.to_datetime(frame["calendarDate"], errors="coerce").dt.normalize()
+    frame[col] = pd.to_numeric(frame[col], errors="coerce")
+    if score_col in frame.columns:
+        frame[score_col] = pd.to_numeric(frame[score_col], errors="coerce")
+    frame = frame.dropna(subset=["calendarDate", col]).sort_values("calendarDate")
+    if frame.empty:
+        print("Skip: no plottable data for sleep duration scored")
+        return None
+
+    fig, ax = plt.subplots(figsize=(12, 4))
+    series = _reindexed_series(frame, y_col=col)
+    if series.empty:
+        print("Skip: no plottable data for sleep duration scored")
+        plt.close(fig)
+        return None
+
+    # Light stems from rolling baseline to point improve temporal readability.
+    ax.vlines(
+        frame["calendarDate"],
+        ymin=np.nanmin(series.values),
+        ymax=frame[col].values,
+        color="#cccccc",
+        lw=0.6,
+        alpha=0.5,
+        zorder=1,
+    )
+    if score_col in frame.columns and frame[score_col].notna().any():
+        sc = ax.scatter(
+            frame["calendarDate"],
+            frame[col],
+            c=frame[score_col],
+            cmap=cmap,
+            s=18,
+            alpha=0.9,
+            edgecolors="none",
+            zorder=3,
+        )
+        cbar = fig.colorbar(sc, ax=ax, pad=0.01)
+        cbar.set_label(score_col)
+    else:
+        ax.scatter(frame["calendarDate"], frame[col], color="#1f77b4", s=18, alpha=0.8, zorder=3)
+
+    ax.plot(
+        series.index,
+        rolling_mean(series, window=rolling_days).values,
+        color="#111111",
+        lw=ROLL_LINE_WIDTH,
+        alpha=ROLL_LINE_ALPHA,
+        label=f"sleep_total_hours ({rolling_days}d)",
+    )
+    ax.set_title(f"Sleep duration over time, colored by {score_col}" if score_col in frame.columns else "Sleep duration over time")
+    ax.set_xlabel("calendarDate")
+    ax.set_ylabel("hours")
+    ax.legend(loc="best")
     _finalize_figure(fig, save_figs=save_figs, fig_dir=fig_dir, fig_name=fig_name)
     return None
 
@@ -379,12 +534,13 @@ def plot_sleep_respiration(
         if series.empty:
             continue
         plotted = True
-        ax.plot(series.index, series.values, label=f"{label_map[col]} (raw)", lw=1.0, alpha=0.8)
+        ax.plot(series.index, series.values, label=f"{label_map[col]} (raw)", lw=RAW_LINE_WIDTH, alpha=RAW_LINE_ALPHA)
         ax.plot(
             series.index,
             rolling_mean(series, window=rolling_days).values,
             label=f"{label_map[col]} ({rolling_days}d)",
-            lw=2.0,
+            lw=ROLL_LINE_WIDTH,
+            alpha=ROLL_LINE_ALPHA,
         )
 
     if not plotted:
@@ -395,6 +551,69 @@ def plot_sleep_respiration(
     ax.set_title("Sleep respiration over time (df_sleep)")
     ax.set_xlabel("calendarDate")
     ax.set_ylabel("brpm")
+    ax.legend(loc="best", ncol=2)
+    _finalize_figure(fig, save_figs=save_figs, fig_dir=fig_dir, fig_name=fig_name)
+    return None
+
+
+def plot_sleep_spo2(
+    df_sleep: pd.DataFrame,
+    *,
+    rolling_days: int = 7,
+    save_figs: bool = False,
+    fig_dir: Path | str | None = None,
+    fig_name: str = "sleep_spo2",
+):
+    # Garmin exports may expose both legacy and sleep-summary naming variants.
+    # Prefer one coherent pair to avoid plotting duplicated signals twice.
+    preferred_pairs = [
+        [("averageSpo2Value", "avgSpO2"), ("lowestSpo2Value", "lowestSpO2")],
+        [("spo2SleepAverageSPO2", "sleepAvgSpO2"), ("spo2SleepLowestSPO2", "sleepLowestSpO2")],
+    ]
+    cols: list[tuple[str, str]] = []
+    for pair in preferred_pairs:
+        if all(col in df_sleep.columns for col, _ in pair):
+            cols = pair
+            break
+    if not cols:
+        # Fallback: use any available pair-like columns (still keep order stable)
+        fallback = [
+            ("averageSpo2Value", "avgSpO2"),
+            ("lowestSpo2Value", "lowestSpO2"),
+            ("spo2SleepAverageSPO2", "sleepAvgSpO2"),
+            ("spo2SleepLowestSPO2", "sleepLowestSpO2"),
+        ]
+        cols = [(c, label) for c, label in fallback if c in df_sleep.columns]
+    if len(cols) < 2:
+        print("Skip: missing sleep SpO2 columns")
+        return None
+
+    fig, ax = plt.subplots(figsize=(12, 4))
+    plotted = False
+    palette = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd"]
+    for (col, label), color in zip(cols, palette):
+        series = _reindexed_series(df_sleep, y_col=col)
+        if series.empty:
+            continue
+        plotted = True
+        ax.plot(series.index, series.values, label=f"{label} (raw)", lw=RAW_LINE_WIDTH, alpha=RAW_LINE_ALPHA, color=color)
+        ax.plot(
+            series.index,
+            rolling_mean(series, window=rolling_days).values,
+            label=f"{label} ({rolling_days}d)",
+            lw=ROLL_LINE_WIDTH,
+            alpha=ROLL_LINE_ALPHA,
+            color=color,
+        )
+
+    if not plotted:
+        print("Skip: no plottable sleep SpO2")
+        plt.close(fig)
+        return None
+
+    ax.set_title("Sleep oxygen saturation over time (df_sleep)")
+    ax.set_xlabel("calendarDate")
+    ax.set_ylabel("SpO2 (%)")
     ax.legend(loc="best", ncol=2)
     _finalize_figure(fig, save_figs=save_figs, fig_dir=fig_dir, fig_name=fig_name)
     return None

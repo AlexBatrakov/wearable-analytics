@@ -30,9 +30,11 @@ __all__ = [
 try:
 	from .sleep_plots import (
 		plot_sleep_duration,
+		plot_sleep_duration_scored,
 		plot_sleep_intervals,
 		plot_sleep_respiration,
 		plot_sleep_scores,
+		plot_sleep_spo2,
 		plot_sleep_stage_fractions,
 		plot_sleep_stage_hours,
 		plot_sleep_stress,
@@ -47,10 +49,12 @@ else:
 		[
 			"plot_sleep_intervals",
 			"plot_sleep_duration",
+			"plot_sleep_duration_scored",
 			"plot_sleep_stage_fractions",
 			"plot_sleep_stage_hours",
 			"plot_sleep_scores",
 			"plot_sleep_respiration",
+			"plot_sleep_spo2",
 			"plot_sleep_stress",
 		]
 	)
