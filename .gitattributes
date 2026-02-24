@@ -1,0 +1,3 @@
+# Keep notebooks in the repo, but exclude them from GitHub language statistics
+# so the repository is classified by the source code (Python).
+*.ipynb linguist-detectable=false
