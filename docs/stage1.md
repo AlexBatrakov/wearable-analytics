@@ -83,6 +83,7 @@ Quick sensitivity checks (strict labels) used to validate that defaults are reas
 ## Sanitize notes
 
 - `sleep_sanitized.parquet` may be identical to `sleep.parquet` on some exports if the sleep ingestion step already excluded identifier-like nested fields.
+- Sanitize also applies a value-level cleanup for stress-level metrics: Garmin sentinel/out-of-range values (e.g., `-2`, `-1`, `>100`) in `*averageStressLevel*` and `avgSleepStress` are converted to `NaN` so downstream EDA/statistics are not biased by non-physical values.
 
 ## Suspicious-day diagnostics notes
 

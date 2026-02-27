@@ -11,6 +11,7 @@ import pandas as pd
 
 
 _GUID_RE = re.compile(r"^[0-9a-fA-F-]{32,}$")
+_STRESS_LEVEL_RE = re.compile(r"(?:^|_)averageStressLevel(?:Intensity)?$")
 
 
 def default_sensitive_column_patterns() -> list[re.Pattern[str]]:
@@ -61,6 +62,36 @@ def _is_calendar_duplicate(col: str) -> bool:
     if lowered == "calendardate":
         return False
     return lowered.endswith("_calendardate") or lowered.endswith("_calendardatestr")
+
+
+def _is_stress_level_column(col: str) -> bool:
+    if col == "avgSleepStress":
+        return True
+    return bool(_STRESS_LEVEL_RE.search(col))
+
+
+def _normalize_stress_levels(df: pd.DataFrame) -> dict[str, int]:
+    """Normalize stress-level sentinel/out-of-range values to NaN.
+
+    Garmin exports may encode missing stress levels with negative sentinels
+    (e.g., -2 for ASLEEP, -1 for AWAKE/TOTAL). Stress level is expected to be
+    in [0, 100], so anything outside this interval is treated as missing.
+    """
+    replaced_counts: dict[str, int] = {}
+    for col in df.columns:
+        if not _is_stress_level_column(col):
+            continue
+
+        numeric = pd.to_numeric(df[col], errors="coerce")
+        invalid_mask = numeric.notna() & ((numeric < 0) | (numeric > 100))
+        invalid_count = int(invalid_mask.sum())
+        if invalid_count == 0:
+            continue
+
+        df[col] = numeric.mask(invalid_mask)
+        replaced_counts[col] = invalid_count
+
+    return replaced_counts
 
 
 def _sanitize_dataframe_impl(
@@ -139,12 +170,21 @@ def _sanitize_dataframe_impl(
         kept_cols = [calendar_col] + [c for c in kept_cols if c != calendar_col]
 
     out = df.loc[:, kept_cols].copy()
+    stress_replacements = _normalize_stress_levels(out)
+
+    if stress_replacements:
+        rules_applied.append("normalize_stress_levels_out_of_range_to_null")
 
     report: dict[str, Any] = {
         "dropped_columns": sorted(to_drop),
         "kept_columns": list(out.columns),
         "rules_applied": rules_applied,
     }
+    if stress_replacements:
+        report["value_replacements"] = {
+            "rule": "stress_levels_must_be_in_0_100",
+            "replaced_to_null_by_column": dict(sorted(stress_replacements.items())),
+        }
     return out, report
 
 

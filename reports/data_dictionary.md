@@ -1,6 +1,6 @@
 # Data Dictionary
 
-Generated at (UTC): 2026-02-23T15:02:15.379182+00:00
+Generated at (UTC): 2026-02-27T13:54:45.361392+00:00
 Dataset shape: rows=580, columns=176
 Date range: 2023-05-26 to 2026-02-05
 
@@ -63,33 +63,33 @@ Date range: 2023-05-26 to 2026-02-05
 | abnormalHeartRateAlertsCount | Int64 | 9.655 | 90.345 | false | 2023-05-28 | 2023-11-04 | heart_rate |  |
 | allDayStress_ASLEEP_highDuration | Int64 | 18.276 | 81.724 | false | 2023-05-28 | 2026-01-29 | stress |  |
 | bodyBatteryStat_SLEEPEND | Int64 | 28.793 | 71.207 | false | 2024-11-17 | 2026-02-05 | body_battery |  |
-| bodyBatteryStat_SLEEPEND_statTimestamp | str | 28.793 | 71.207 | false | 2024-11-17 | 2026-02-05 | body_battery | ISO datetime string |
 | bodyBatteryStat_SLEEPEND_bodyBatteryStatus | str | 28.793 | 71.207 | true | 2024-11-17 | 2026-02-05 | body_battery |  |
+| bodyBatteryStat_SLEEPEND_statTimestamp | str | 28.793 | 71.207 | false | 2024-11-17 | 2026-02-05 | body_battery | ISO datetime string |
 | bodyBatteryStat_SLEEPSTART | Int64 | 29.828 | 70.172 | false | 2024-06-21 | 2026-02-05 | body_battery |  |
 | bodyBatteryStat_SLEEPSTART_bodyBatteryStatus | str | 29.828 | 70.172 | true | 2024-06-21 | 2026-02-05 | body_battery |  |
 | bodyBatteryStat_SLEEPSTART_statTimestamp | str | 29.828 | 70.172 | false | 2024-06-21 | 2026-02-05 | body_battery | ISO datetime string |
 | respiration_algorithmVersion | Int64 | 36.207 | 63.793 | true | 2024-08-14 | 2026-02-05 | respiration |  |
 | restingCaloriesFromActivity | Int64 | 43.621 | 56.379 | false | 2023-05-26 | 2026-01-31 | calories |  |
-| hydration_capped | boolean | 43.793 | 56.207 | true | 2023-05-26 | 2026-01-31 | hydration |  |
-| hydration_goalInML | Float64 | 43.793 | 56.207 | false | 2023-05-26 | 2026-01-31 | hydration |  |
-| hydration_adjustedGoalInML | Float64 | 43.793 | 56.207 | false | 2023-05-26 | 2026-01-31 | hydration |  |
-| hydration_lastEntryTimestampLocal | str | 43.793 | 56.207 | false | 2023-05-26 | 2026-01-31 | hydration | ISO datetime string |
-| hydration_activityIntakeInML | Int64 | 43.793 | 56.207 | true | 2023-05-26 | 2026-01-31 | hydration |  |
 | hydration_sweatLossInML | Int64 | 43.793 | 56.207 | false | 2023-05-26 | 2026-01-31 | hydration |  |
 | hydration_valueInML | Int64 | 43.793 | 56.207 | true | 2023-05-26 | 2026-01-31 | hydration |  |
-| allDayStress_ASLEEP_stressTooActiveCount | Int64 | 47.241 | 52.759 | false | 2023-05-28 | 2026-02-05 | stress |  |
+| hydration_lastEntryTimestampLocal | str | 43.793 | 56.207 | false | 2023-05-26 | 2026-01-31 | hydration | ISO datetime string |
+| hydration_goalInML | Float64 | 43.793 | 56.207 | false | 2023-05-26 | 2026-01-31 | hydration |  |
+| hydration_capped | boolean | 43.793 | 56.207 | true | 2023-05-26 | 2026-01-31 | hydration |  |
+| hydration_adjustedGoalInML | Float64 | 43.793 | 56.207 | false | 2023-05-26 | 2026-01-31 | hydration |  |
+| hydration_activityIntakeInML | Int64 | 43.793 | 56.207 | true | 2023-05-26 | 2026-01-31 | hydration |  |
 | allDayStress_ASLEEP_activityDuration | Int64 | 47.241 | 52.759 | false | 2023-05-28 | 2026-02-05 | stress |  |
 | bodyBatteryStat_DURINGSLEEP_statTimestamp | str | 47.241 | 52.759 | false | 2023-12-18 | 2026-02-05 | body_battery | ISO datetime string |
 | bodyBatteryStat_DURINGSLEEP_bodyBatteryStatus | str | 47.241 | 52.759 | true | 2023-12-18 | 2026-02-05 | body_battery |  |
 | bodyBatteryStat_DURINGSLEEP | Int64 | 47.241 | 52.759 | false | 2023-12-18 | 2026-02-05 | body_battery |  |
+| allDayStress_ASLEEP_stressTooActiveCount | Int64 | 47.241 | 52.759 | false | 2023-05-28 | 2026-02-05 | stress |  |
 | allDayStress_ASLEEP_mediumDuration | Int64 | 61.724 | 38.276 | false | 2023-05-27 | 2026-02-05 | stress |  |
 | isVigorousDay | boolean | 65.69 | 34.31 | false | 2023-12-13 | 2026-02-05 | other |  |
 | remainingKilocalories | Int64 | 67.241 | 32.759 | false | 2023-05-26 | 2025-01-13 | calories |  |
 | allDayStress_ASLEEP_stressOffWristCount | Int64 | 69.828 | 30.172 | false | 2023-05-27 | 2026-02-03 | stress |  |
 | allDayStress_ASLEEP_uncategorizedDuration | Int64 | 69.828 | 30.172 | false | 2023-05-27 | 2026-02-03 | stress |  |
 | spo2SleepAverageHR | float64 | 77.241 | 22.759 | false | 2023-05-28 | 2026-02-03 | sleep |  |
+| spo2SleepMeasurementStartTimestampGMT | Int64 | 77.586 | 22.414 | false | 2023-05-28 | 2026-02-05 | sleep | epoch seconds timestamp |
 | spo2SleepLowestSPO2 | Int64 | 77.586 | 22.414 | false | 2023-05-28 | 2026-02-05 | sleep |  |
-| spo2SleepAverageSPO2 | float64 | 77.586 | 22.414 | false | 2023-05-28 | 2026-02-05 | sleep |  |
 
 ## Columns by group
 
@@ -271,8 +271,8 @@ Date range: 2023-05-26 to 2026-02-05
 | column | dtype | non_null_pct | missing_pct | n_unique | is_constant | zero_pct | first_non_null_date | last_non_null_date | example_values | min | p05 | p25 | median | p75 | p95 | max | inferred_unit | notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | allDayStress_ASLEEP_activityDuration | Int64 | 47.241 | 52.759 | 13 | false | 0 | 2023-05-28 | 2026-02-05 | [300, 180, 60, 240, 360] | 60 | 60 | 60 | 120 | 180 | 420 | 3960 |  |  |
-| allDayStress_ASLEEP_averageStressLevel | Int64 | 100 | 0 | 38 | false | 0 | 2023-05-26 | 2026-02-05 | [-2, 6, 9, 8, 5] | -2 | -2 | 7 | 12 | 16 | 23 | 57 |  |  |
-| allDayStress_ASLEEP_averageStressLevelIntensity | Int64 | 100 | 0 | 29 | false | 0 | 2023-05-26 | 2026-02-05 | [-2, 6, 9, 8, 11] | -2 | -2 | 7 | 12 | 16 | 21 | 57 |  |  |
+| allDayStress_ASLEEP_averageStressLevel | Int64 | 79.828 | 20.172 | 37 | false | 0 | 2023-05-27 | 2026-02-05 | [6, 9, 8, 5, 11] | 3 | 6 | 10 | 13 | 17 | 24 | 57 |  |  |
+| allDayStress_ASLEEP_averageStressLevelIntensity | Int64 | 79.828 | 20.172 | 28 | false | 0 | 2023-05-27 | 2026-02-05 | [6, 9, 8, 11, 10] | 4 | 7 | 10 | 13 | 17 | 22 | 57 |  |  |
 | allDayStress_ASLEEP_highDuration | Int64 | 18.276 | 81.724 | 17 | false | 0 | 2023-05-28 | 2026-01-29 | [60, 120, 240, 180, 600] | 60 | 60 | 60 | 120 | 345 | 705 | 4560 |  |  |
 | allDayStress_ASLEEP_lowDuration | Int64 | 78.621 | 21.379 | 134 | false | 0 | 2023-05-27 | 2026-02-05 | [240, 1080, 1380, 300, 1800] | 60 | 180 | 780 | 1800 | 3855 | 8295 | 14580 |  |  |
 | allDayStress_ASLEEP_maxStressLevel | Int64 | 79.828 | 20.172 | 73 | false | 0 | 2023-05-27 | 2026-02-05 | [51, 89, 54, 30, 45] | 16 | 35.1 | 53 | 66 | 75 | 88 | 97 |  |  |
@@ -287,8 +287,8 @@ Date range: 2023-05-26 to 2026-02-05
 | allDayStress_ASLEEP_totalStressIntensity | Int64 | 79.828 | 20.172 | 463 | false | 0 | 2023-05-27 | 2026-02-05 | [36558, 27751, 36026, 33586, 38653] | -17133 | 4939.7 | 15982 | 22400 | 30278 | 40038.8 | 52940 |  |  |
 | allDayStress_ASLEEP_uncategorizedDuration | Int64 | 69.828 | 30.172 | 69 | false | 0 | 2023-05-27 | 2026-02-03 | [240, 900, 300, 120, 1020] | 60 | 60 | 240 | 660 | 1500 | 3468 | 5880 |  |  |
 | allDayStress_AWAKE_activityDuration | Int64 | 94.31 | 5.69 | 263 | false | 0 | 2023-05-26 | 2026-02-05 | [5580, 17100, 9840, 14760, 12120] | 60 | 1656 | 5940 | 9000 | 12420 | 18522 | 64320 |  |  |
-| allDayStress_AWAKE_averageStressLevel | Int64 | 100 | 0 | 71 | false | 0 | 2023-05-26 | 2026-02-05 | [50, 41, 58, 36, 38] | -1 | -1 | 44 | 53 | 63 | 76 | 91 |  |  |
-| allDayStress_AWAKE_averageStressLevelIntensity | Int64 | 100 | 0 | 71 | false | 0 | 2023-05-26 | 2026-02-05 | [43, 33, 55, 30, 31] | -1 | -1 | 40 | 52 | 61 | 75.05 | 91 |  |  |
+| allDayStress_AWAKE_averageStressLevel | Int64 | 94.31 | 5.69 | 70 | false | 0 | 2023-05-26 | 2026-02-05 | [50, 41, 58, 36, 38] | 8 | 34 | 46 | 54 | 63 | 76 | 91 |  |  |
+| allDayStress_AWAKE_averageStressLevelIntensity | Int64 | 94.31 | 5.69 | 70 | false | 0 | 2023-05-26 | 2026-02-05 | [43, 33, 55, 30, 31] | 9 | 25 | 43 | 52 | 62 | 76 | 91 |  |  |
 | allDayStress_AWAKE_highDuration | Int64 | 93.276 | 6.724 | 277 | false | 0 | 2023-05-26 | 2026-02-05 | [3120, 3660, 14340, 1200, 4860] | 60 | 1380 | 5340 | 9000 | 13980 | 23400 | 47580 |  |  |
 | allDayStress_AWAKE_lowDuration | Int64 | 93.621 | 6.379 | 281 | false | 0 | 2023-05-26 | 2026-02-05 | [3660, 9420, 9660, 12420, 14340] | 60 | 1746 | 6780 | 10860 | 14370 | 20394 | 28980 |  |  |
 | allDayStress_AWAKE_maxStressLevel | Int64 | 94.31 | 5.69 | 22 | false | 0 | 2023-05-26 | 2026-02-05 | [96, 97, 99, 90, 98] | 30 | 90 | 96.5 | 99 | 99 | 99 | 100 |  |  |
@@ -303,8 +303,8 @@ Date range: 2023-05-26 to 2026-02-05
 | allDayStress_AWAKE_totalStressIntensity | Int64 | 94.31 | 5.69 | 547 | false | 0 | 2023-05-26 | 2026-02-05 | [-6142, -6824, -26075, -4452, -6960] | -76210 | -44095.8 | -31874 | -22751 | -14017.5 | 15 | 45292 |  |  |
 | allDayStress_AWAKE_uncategorizedDuration | Int64 | 99.828 | 0.172 | 208 | false | 0 | 2023-05-26 | 2026-02-05 | [1560, 3300, 10440, 2880, 2160] | 60 | 720 | 1800 | 2940 | 5970 | 51486 | 86400 |  |  |
 | allDayStress_TOTAL_activityDuration | Int64 | 94.31 | 5.69 | 268 | false | 0 | 2023-05-26 | 2026-02-05 | [5580, 17100, 10140, 14940, 12120] | 60 | 1860 | 5940 | 9120 | 12480 | 18708 | 64320 |  |  |
-| allDayStress_TOTAL_averageStressLevel | Int64 | 100 | 0 | 67 | false | 0 | 2023-05-26 | 2026-02-05 | [50, 25, 38, 23, 26] | -1 | -1 | 31 | 37 | 44 | 60 | 91 |  |  |
-| allDayStress_TOTAL_averageStressLevelIntensity | Int64 | 100 | 0 | 63 | false | 0 | 2023-05-26 | 2026-02-05 | [43, 18, 25, 20, 22] | -1 | -1 | 23 | 25 | 35 | 58.05 | 91 |  |  |
+| allDayStress_TOTAL_averageStressLevel | Int64 | 94.31 | 5.69 | 66 | false | 0 | 2023-05-26 | 2026-02-05 | [50, 25, 38, 23, 26] | 8 | 25 | 33 | 38 | 44 | 60 | 91 |  |  |
+| allDayStress_TOTAL_averageStressLevelIntensity | Int64 | 94.31 | 5.69 | 62 | false | 0 | 2023-05-26 | 2026-02-05 | [43, 18, 25, 20, 22] | 9 | 20 | 23 | 27 | 35.5 | 59 | 91 |  |  |
 | allDayStress_TOTAL_highDuration | Int64 | 93.276 | 6.724 | 274 | false | 0 | 2023-05-26 | 2026-02-05 | [3120, 3660, 14400, 1200, 4860] | 60 | 1380 | 5520 | 9060 | 13980 | 23520 | 47580 |  |  |
 | allDayStress_TOTAL_lowDuration | Int64 | 93.621 | 6.379 | 296 | false | 0 | 2023-05-26 | 2026-02-05 | [3660, 9660, 10740, 13800, 14640] | 60 | 2538 | 8700 | 13200 | 17370 | 24234 | 34740 |  |  |
 | allDayStress_TOTAL_maxStressLevel | Int64 | 94.31 | 5.69 | 22 | false | 0 | 2023-05-26 | 2026-02-05 | [96, 97, 99, 90, 98] | 30 | 90 | 96.5 | 99 | 99 | 99 | 100 |  |  |

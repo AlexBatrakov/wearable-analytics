@@ -1,6 +1,6 @@
 # Quality Summary
 
-Generated at (UTC): 2026-02-23T15:02:41.818583+00:00
+Generated at (UTC): 2026-02-27T13:54:45.828843+00:00
 Input file: /Users/abatrakov/Documents/FUN/wearable-analytics/data/processed/daily_sanitized.parquet
 Dataset shape: rows=580, columns=194
 Date range: 2023-05-26 to 2026-02-05

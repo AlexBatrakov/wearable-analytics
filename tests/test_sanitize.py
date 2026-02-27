@@ -94,3 +94,34 @@ def test_keep_drop_precedence_and_calendar_date_protection() -> None:
     assert "totalSteps" in out.columns
     assert "source" in report["dropped_columns"]
     assert "calendarDate" not in report["dropped_columns"]
+
+
+def test_sanitize_normalizes_stress_level_sentinels_to_null() -> None:
+    df = pd.DataFrame(
+        {
+            "calendarDate": ["2025-01-15", "2025-01-16", "2025-01-17", "2025-01-18"],
+            "allDayStress_ASLEEP_averageStressLevel": [-2, 18, 42, 101],
+            "allDayStress_AWAKE_averageStressLevelIntensity": [-1, 35, 55, 70],
+            "avgSleepStress": [12.5, -3.0, 52.2, 200.0],
+            "bodyBatteryNetBalance": [-10, 0, 5, 12],  # should not be altered
+        }
+    )
+
+    out, report = sanitize_dataframe(df)
+
+    assert pd.isna(out.loc[0, "allDayStress_ASLEEP_averageStressLevel"])
+    assert pd.isna(out.loc[3, "allDayStress_ASLEEP_averageStressLevel"])
+    assert pd.isna(out.loc[0, "allDayStress_AWAKE_averageStressLevelIntensity"])
+    assert pd.isna(out.loc[1, "avgSleepStress"])
+    assert pd.isna(out.loc[3, "avgSleepStress"])
+
+    assert out.loc[1, "allDayStress_ASLEEP_averageStressLevel"] == 18
+    assert out.loc[2, "allDayStress_AWAKE_averageStressLevelIntensity"] == 55
+    assert out.loc[0, "bodyBatteryNetBalance"] == -10
+
+    assert "normalize_stress_levels_out_of_range_to_null" in report["rules_applied"]
+    assert report["value_replacements"]["replaced_to_null_by_column"] == {
+        "allDayStress_ASLEEP_averageStressLevel": 2,
+        "allDayStress_AWAKE_averageStressLevelIntensity": 1,
+        "avgSleepStress": 2,
+    }
