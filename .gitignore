@@ -227,6 +227,9 @@ data/**/*.csv
 # Exported EDA figures
 reports/figures/
 
+# Local notebook snapshots/backups (keep local, do not version)
+notebooks/_archive/
+
 # Internal markdown files for notes and documentation
 docs/AGENT_SOURCE_OF_TRUTH.md
 docs/internal/

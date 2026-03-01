@@ -64,7 +64,8 @@ jupyter lab
 
 - `01_eda_prepare.ipynb`: analysis contract + canonical slices + coverage-aware overview (including a GitHub-style daily coverage/quality calendar)
 - `02_eda_timeseries.ipynb`: substantial draft exists; current focus is chart-by-chart audit and refinement
-- `03_eda_distributions.ipynb`: scaffold/in-progress (next major work item)
+- `03_eda_distributions.ipynb`: distributions + segmented comparisons (weekday/weekend, day-of-week, sleep-quality buckets)
+- `04_eda_relationships.ipynb`: directional relationships, grouped correlation matrices, targeted validation plots, artifact review stubs
 
 ## Docs
 

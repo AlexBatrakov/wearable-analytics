@@ -32,11 +32,36 @@ Exported figures for Notebook 02 land under `reports/figures/timeseries/`.
 Treat these as local, generated artifacts; they are intended to stay out of normal commits (`reports/figures/` is gitignored).
 Notebook 02 exports sleep-timeseries figures via the same toggle/mechanism when `SAVE_FIGS=True`.
 
-## Notebook 03: distributions + relationships (in progress)
+## Notebook 03: distributions + segmented patterns
 
 - File: `notebooks/03_eda_distributions.ipynb`
-- Purpose: extend EDA beyond timeseries into distributions, relationships, artifact review, and Stage 2 findings/hypotheses
-- Current status: notebook exists and is being built out iteratively
+- Purpose: characterize metric distributions and segmented behavior before relationship analysis
+- Covers:
+  - distribution shape checks (hist + box + ECDF)
+  - weekday/weekend segmentation
+  - day-of-week segmentation (including sleep-onset anchored weekday for sleep metrics)
+  - sleep-quality-bucket segmentation (Garmin thresholds)
+
+Questions answered:
+- Which metrics are heavy-tailed, clipped, or bounded by device/model logic?
+- Which behavioral differences appear only after segmentation (not in global distributions)?
+- Which stable segmented patterns should be carried into directional relationship checks?
+
+## Notebook 04: relationships + correlations + artifacts
+
+- File: `notebooks/04_eda_relationships.ipynb`
+- Purpose: directional interaction analysis and hypothesis generation
+- Covers:
+  - `D -> D` (sleep morning context vs same-day daytime outcomes)
+  - `D -> D+1` (daytime stress/activity vs next-night sleep outcomes)
+  - grouped correlation screening (`core` / `extended`)
+  - targeted validation plots for strongest matrix observations
+  - artifact/anomaly review inputs and Stage 2 synthesis
+
+Questions answered:
+- Which pairwise associations remain stable after explicit temporal alignment?
+- Which matrix findings survive targeted distribution-level validation?
+- Which hypotheses are strong enough to move into final showcase narrative?
 
 See also:
 - [Stage 2 details](stage2.md)

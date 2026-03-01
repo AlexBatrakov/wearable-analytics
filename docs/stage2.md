@@ -8,12 +8,14 @@ Current working mode is hybrid: notebooks for interactive exploration + reusable
 1. `notebooks/01_eda_prepare.ipynb` (Stage 2.0)
 2. `notebooks/02_eda_timeseries.ipynb` (Stage 2.1)
 3. `notebooks/03_eda_distributions.ipynb` (Stage 2.2)
+4. `notebooks/04_eda_relationships.ipynb` (Stage 2.3)
 
-## Current status (2026-02-23)
+## Current status (2026-03-01)
 
 - **Stage 2.0 / `01_eda_prepare.ipynb`**: analysis contract + canonical slices completed, with coverage-aware overview tables/visuals (including a GitHub-style daily coverage/quality calendar heatmap)
 - **Stage 2.1 / `02_eda_timeseries.ipynb`**: substantial draft exists; visual audit/refinement next
-- **Stage 2.2 / `03_eda_distributions.ipynb`**: notebook file exists but still early/incomplete
+- **Stage 2.2 / `03_eda_distributions.ipynb`**: curated distributions + segmented comparisons (weekday/weekend, day-of-week, sleep quality buckets)
+- **Stage 2.3 / `04_eda_relationships.ipynb`**: directional relationships (`D -> D`, `D -> D+1`), grouped correlation screening, targeted validation plots, artifact review stubs, and synthesized findings/hypotheses
 
 ### 2.0 Prepare notebook
 
@@ -53,18 +55,40 @@ Current plots include:
 - body battery high/low
 - body battery range
 
-### 2.2 Distributions notebook (in progress)
+### 2.2 Distributions notebook
 
 - Builds numeric distributions for strict daily and sleep slices
 - Uses histogram + boxplot views to inspect skew, spread, and outliers
-- Will also cover relationships, artifact review, and Stage 2 findings/hypotheses (not only distributions)
 - Reuses the same figure export policy (`SAVE_FIGS` + local `reports/figures/` outputs)
+
+Current snapshot highlights:
+- `totalSteps` is highly heterogeneous (p10≈821, median≈6389, p90≈14980), confirming mixed low-activity and active-day regimes.
+- `step_length_m` centers around ~0.78 m/step with asymmetric tails, consistent with mostly walking plus smaller faster-gait periods.
+- `floorsAscendedInMeters` shows a meaningful mass at `0` plus a broad main body around ~20–45 m, so climb activity is intermittent rather than smooth day-to-day.
+- Day-of-week segmentation surfaces stable patterns:
+  - Saturday is the most active day (`active_hours` median ≈1.35h; `totalSteps` median ≈8079).
+  - Sunday median steps are markedly lower (~2822), and Sunday active time is also the lowest (`active_hours` median ≈0.50h).
+  - Tuesday median awake stress is the highest (~58), consistent with known weekly context.
+- Sleep duration by sleep-onset weekday is shortest on Monday onset (~7.88h) and longest on Saturday onset (~8.9h).
+- Sleep-quality buckets show a coherent gradient:
+  - median sleep duration rises from poor (~5.4h) to excellent (~8.9h),
+  - median `avgSleepStress` declines from poor (~24.16) to excellent (~11.37).
+
+### 2.3 Relationships notebook
+
+- Focuses on relationship analysis and hypothesis generation:
+  - sleep (morning) vs same-day daytime outcomes
+  - daytime stress/activity vs next-night sleep outcomes
+  - sleep-internal structural links
+- Runs grouped `core` / `extended` correlation submatrices with reliability thresholds
+- Adds targeted validation plots for strongest matrix observations
+- Keeps artifact/anomaly review inputs and Stage 2 synthesis (findings, hypotheses, limitations)
 
 ## What’s next
 
 Next additions:
 - Audit and refine `02_eda_timeseries.ipynb` (chart-by-chart rubric review)
-- Complete notebook 03 (distributions + relationships + artifact review + findings)
+- Finalize Stage 2 deliverable curation from notebooks 03/04 (hero figures + compact narrative)
 - Curate 2-4 hero figures into `docs/img/` and summarize Stage 2 findings in docs/README
 - Optional feature set formalization for modeling-ready datasets
 
