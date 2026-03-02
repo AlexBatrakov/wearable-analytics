@@ -63,9 +63,9 @@ jupyter lab
 ## EDA status snapshot (Stage 2, current)
 
 - `01_eda_prepare.ipynb`: analysis contract + canonical slices + coverage-aware overview (including a GitHub-style daily coverage/quality calendar)
-- `02_eda_timeseries.ipynb`: substantial draft exists; current focus is chart-by-chart audit and refinement
+- `02_eda_timeseries.ipynb`: curated subsystem timelines (activity, stress, heart, Body Battery, sleep timing/duration/stages, respiration, SpO2)
 - `03_eda_distributions.ipynb`: distributions + segmented comparisons (weekday/weekend, day-of-week, sleep-quality buckets)
-- `04_eda_relationships.ipynb`: directional relationships, grouped correlation matrices, targeted validation plots, artifact review stubs
+- `04_eda_relationships.ipynb`: directional relationships, grouped correlation matrices, targeted validation plots, lightweight artifact review, and Stage 2 synthesis
 
 ## Docs
 

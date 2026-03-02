@@ -50,17 +50,19 @@ Questions answered:
 ## Notebook 04: relationships + correlations + artifacts
 
 - File: `notebooks/04_eda_relationships.ipynb`
-- Purpose: directional interaction analysis and hypothesis generation
+- Purpose: directional interaction analysis, matrix screening, artifact review, and final Stage 2 synthesis
 - Covers:
   - `D -> D` (sleep morning context vs same-day daytime outcomes)
   - `D -> D+1` (daytime stress/activity vs next-night sleep outcomes)
   - grouped correlation screening (`core` / `extended`)
   - targeted validation plots for strongest matrix observations
-  - artifact/anomaly review inputs and Stage 2 synthesis
+  - lightweight artifact/anomaly review
+  - final findings / hypotheses / limitations for Stage 2
 
 Questions answered:
 - Which pairwise associations remain stable after explicit temporal alignment?
 - Which matrix findings survive targeted distribution-level validation?
+- Which suspicious days are likely artifacts versus plausible edge cases?
 - Which hypotheses are strong enough to move into final showcase narrative?
 
 See also:

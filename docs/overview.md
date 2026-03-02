@@ -43,7 +43,7 @@ Sanitized outputs are the default boundary for analysis and sharing.
 	- `notebooks/01_eda_prepare.ipynb`
 	- `notebooks/02_eda_timeseries.ipynb`
 	- `notebooks/03_eda_distributions.ipynb` (distributions + segmented comparisons)
-	- `notebooks/04_eda_relationships.ipynb` (relationships + grouped correlations + artifact review inputs)
+	- `notebooks/04_eda_relationships.ipynb` (relationships + grouped correlations + targeted validation + lightweight artifact review)
 
 ## Quick run
 

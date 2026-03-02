@@ -57,7 +57,7 @@ Why this stage exists:
 - `notebooks/01_eda_prepare.ipynb` defines the Stage 2 analysis contract, builds canonical EDA slices, and provides a coverage-aware overview (retention, label distribution, monthly signal coverage, day-level calendar heatmap).
 - `notebooks/02_eda_timeseries.ipynb` explores trends, anomalies, and time-series behavior.
 - `notebooks/03_eda_distributions.ipynb` covers distributions and segmented comparisons (weekday/weekend, day-of-week, sleep-quality buckets).
-- `notebooks/04_eda_relationships.ipynb` covers directional relationships, grouped correlations, targeted validation plots, artifact review inputs, and synthesized findings/hypotheses.
+- `notebooks/04_eda_relationships.ipynb` covers directional relationships, grouped correlations, targeted validation plots, lightweight artifact review, and final Stage 2 findings/hypotheses.
 
 Why this stage exists:
 - Turns validated tables into interpretable patterns and decisions.

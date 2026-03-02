@@ -10,12 +10,12 @@ Current working mode is hybrid: notebooks for interactive exploration + reusable
 3. `notebooks/03_eda_distributions.ipynb` (Stage 2.2)
 4. `notebooks/04_eda_relationships.ipynb` (Stage 2.3)
 
-## Current status (2026-03-01)
+## Current status (2026-03-02)
 
 - **Stage 2.0 / `01_eda_prepare.ipynb`**: analysis contract + canonical slices completed, with coverage-aware overview tables/visuals (including a GitHub-style daily coverage/quality calendar heatmap)
-- **Stage 2.1 / `02_eda_timeseries.ipynb`**: substantial draft exists; visual audit/refinement next
+- **Stage 2.1 / `02_eda_timeseries.ipynb`**: curated subsystem timelines completed (activity, stress, heart, Body Battery, sleep timing/duration/stages, respiration, SpO2)
 - **Stage 2.2 / `03_eda_distributions.ipynb`**: curated distributions + segmented comparisons (weekday/weekend, day-of-week, sleep quality buckets)
-- **Stage 2.3 / `04_eda_relationships.ipynb`**: directional relationships (`D -> D`, `D -> D+1`), grouped correlation screening, targeted validation plots, artifact review stubs, and synthesized findings/hypotheses
+- **Stage 2.3 / `04_eda_relationships.ipynb`**: directional relationships (`D -> D`, `D -> D+1`), grouped correlation screening, targeted validation plots, lightweight artifact review, and final Stage 2 synthesis
 
 ### 2.0 Prepare notebook
 
@@ -82,14 +82,15 @@ Current snapshot highlights:
   - sleep-internal structural links
 - Runs grouped `core` / `extended` correlation submatrices with reliability thresholds
 - Adds targeted validation plots for strongest matrix observations
-- Keeps artifact/anomaly review inputs and Stage 2 synthesis (findings, hypotheses, limitations)
+- Adds a lightweight artifact taxonomy over the union of suspicious-day exports
+- Closes Stage 2 with final findings, hypotheses, and limitations
 
 ## What’s next
 
 Next additions:
-- Audit and refine `02_eda_timeseries.ipynb` (chart-by-chart rubric review)
 - Finalize Stage 2 deliverable curation from notebooks 03/04 (hero figures + compact narrative)
 - Curate 2-4 hero figures into `docs/img/` and summarize Stage 2 findings in docs/README
+- Translate Stage 2 findings into a concise portfolio / resume-facing project story
 - Optional feature set formalization for modeling-ready datasets
 
 See also:
