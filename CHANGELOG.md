@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Showcase packaging for applications:
+  - rewrote `README.md` into a recruiter-facing landing page
+  - added `docs/case_study.md` as a concise portfolio narrative
+  - curated showcase figures under `docs/img/` for coverage, weekly behavior, and day-to-night recovery
+  - repositioned technical docs as second-layer depth behind the case study
+- Stage 2 (EDA) completed:
+  - split analysis into `03_eda_distributions.ipynb` and `04_eda_relationships.ipynb`
+  - finalized relationship analysis, artifact review, and Stage 2 synthesis
 - Stage 2 (EDA): strengthened `notebooks/01_eda_prepare.ipynb` as a quality-aware entry point:
   - explicit analysis contract (grain, slice semantics, quality-filter usage)
   - canonical slice definitions and narrative guidance for downstream notebooks

@@ -3,6 +3,8 @@
 EDA is Stage 2 of this project and is notebook-driven.
 Use sanitized + quality-enriched datasets to keep analysis privacy-safe and interpretable.
 
+For a concise portfolio narrative that summarizes the notebook outputs, start with [the case study](case_study.md). Treat the notebooks below as the evidence layer and technical depth.
+
 ## Notebook 01: prepare
 
 - File: `notebooks/01_eda_prepare.ipynb`
@@ -66,5 +68,6 @@ Questions answered:
 - Which hypotheses are strong enough to move into final showcase narrative?
 
 See also:
+- [Case study](case_study.md)
 - [Stage 2 details](stage2.md)
 - [Pipeline flow](pipeline.md)

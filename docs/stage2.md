@@ -1,7 +1,9 @@
 # Stage 2 — EDA
 
 Stage 2 uses notebooks to analyze trends and prepare next analytical decisions.
-Current working mode is hybrid: notebooks for interactive exploration + reusable helpers in `src/garmin_analytics/eda/` + curated docs figures later.
+Current working mode is hybrid: notebooks for interactive exploration + reusable helpers in `src/garmin_analytics/eda/` + curated public figures in `docs/img/`.
+
+For a concise portfolio narrative built from the final Stage 2 outputs, start with [the case study](case_study.md).
 
 ## Notebook sequence
 
@@ -87,11 +89,15 @@ Current snapshot highlights:
 
 ## What’s next
 
-Next additions:
-- Finalize Stage 2 deliverable curation from notebooks 03/04 (hero figures + compact narrative)
-- Curate 2-4 hero figures into `docs/img/` and summarize Stage 2 findings in docs/README
-- Translate Stage 2 findings into a concise portfolio / resume-facing project story
-- Optional feature set formalization for modeling-ready datasets
+Current status after Stage 2 closeout:
+- curated hero figures have been promoted into `docs/img/`
+- Stage 2 findings have been summarized in the root `README.md`
+- the recruiter-facing narrative now lives in [the case study](case_study.md)
+
+Optional next additions:
+- feature set formalization for modeling-ready datasets
+- optional PCA-style appendix for dimensionality reduction / redundancy exploration
+- follow-on analytical stages beyond EDA (only if they add real portfolio value)
 
 See also:
 - [EDA guide](eda.md)

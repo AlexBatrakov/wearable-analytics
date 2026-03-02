@@ -3,6 +3,8 @@
 This project follows:
 **discover → ingest → build → sanitize → quality → EDA**
 
+Why this matters: the repository is structured as a full local analytics workflow, not as a notebook-only analysis. That distinction is part of the portfolio value of the project.
+
 ## Inputs
 
 Place Garmin export files locally under `data/raw/DI_CONNECT` (or set `GARMIN_EXPORT_DIR`).
@@ -65,6 +67,7 @@ Why this stage exists:
 - Produces candidate insights for follow-on analysis and reporting.
 
 See stage pages for command-level detail:
+- [Case study](case_study.md)
 - [Stage 0](stage0.md)
 - [Stage 1](stage1.md)
 - [Stage 2](stage2.md)

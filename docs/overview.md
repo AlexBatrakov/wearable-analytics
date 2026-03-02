@@ -6,6 +6,13 @@ It turns raw files into curated parquet datasets, applies sanitization and quali
 Raw exports and `data/` artifacts are local-only.
 Sanitized outputs are the default boundary for analysis and sharing.
 
+## How to read this repository
+
+This repo now has two layers:
+
+- **Recruiter-facing showcase**: start at the root `README.md`, then use the [case study](case_study.md) for the expanded portfolio narrative.
+- **Technical depth**: use the stage docs, pipeline notes, and notebooks to validate implementation details and analytical reasoning.
+
 ## Stage map
 
 - [Stage 0](stage0.md): raw discovery + ingestion + build parquet outputs
@@ -14,6 +21,7 @@ Sanitized outputs are the default boundary for analysis and sharing.
 
 ## Documentation map
 
+- [Case study](case_study.md)
 - [Pipeline flow](pipeline.md)
 - [CLI commands](cli.md)
 - [EDA guide](eda.md)
