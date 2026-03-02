@@ -17,6 +17,7 @@ dependencies = [
   "rich",
   "typer",
   "python-dotenv",
+  "scipy",
   "scikit-learn",
 ]
 

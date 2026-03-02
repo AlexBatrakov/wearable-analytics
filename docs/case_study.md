@@ -152,6 +152,8 @@ A nonlinear benchmark (`HistGradientBoostingClassifier`) performs slightly bette
 
 Just as importantly, Stage 3 keeps a negative result instead of hiding it: current day-level awake aggregates do **not** beat a simple median baseline when asked to predict exact next-night numeric targets (`sleepRecoveryScore`, `sleepOverallScore`, `sleepQualityScore`, or `avgSleepStress`). That is analytically useful because it draws a clear boundary between what the present feature layer can and cannot support.
 
+Stage 3 also adds a lightweight validation layer for the claims that matter most to the public narrative. Three of the strongest observational findings hold up under simple statistical checks: Saturday activity is significantly higher than Sunday activity, higher daytime awake stress is associated with lower next-night recovery, and higher daytime awake stress is also associated with higher next-night sleep stress. A fourth descriptive observation, that Tuesday is the highest-stress weekday, remains weaker and is better treated as an exploratory weekly-rhythm note than as a validated headline result.
+
 ## What This Demonstrates as a DS/DA Project
 
 This repo demonstrates more than one skill category:

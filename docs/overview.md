@@ -56,6 +56,7 @@ This repo now has two layers:
 	- `notebooks/04_eda_relationships.ipynb` (relationships + grouped correlations + targeted validation + lightweight artifact review)
 - **Notebook (Stage 3)**
 	- `notebooks/05_modeling_recovery.ipynb` (validation + modeling baseline)
+	- `notebooks/06_statistical_validation.ipynb` (focused hypothesis checks for promoted findings)
 
 ## Quick run
 

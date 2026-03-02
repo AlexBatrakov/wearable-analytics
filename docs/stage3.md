@@ -5,6 +5,7 @@ The current focus is narrow on purpose: test whether `day D` awake signals conta
 
 Primary evidence notebook:
 - `notebooks/05_modeling_recovery.ipynb`
+- `notebooks/06_statistical_validation.ipynb`
 
 ## Current Scope
 
@@ -13,6 +14,7 @@ The initial Stage 3 pass evaluates three kinds of tasks:
 1. Binary classification of **low next-night recovery**
 2. Regression of **next-night numeric sleep targets**
 3. Secondary binary classification of **high next-night avgSleepStress**
+4. Lightweight statistical validation of a small number of headline findings
 
 The modeling frame is built from the strict-quality day slice and aligned with next-night sleep targets using the same `D -> D+1` contract used in Stage 2 directional analysis.
 
@@ -26,6 +28,34 @@ Current notebook run snapshot:
 - split strategy: contiguous time-ordered `60/20/20` train/validation/test
 
 This is intentional. Random train/test shuffling would overstate quality on a single-subject temporal dataset.
+
+## Statistical Validation Snapshot
+
+Stage 3 now also includes a narrow statistical-validation pass for the claims already visible in Stage 2 and used by the Stage 3 modeling story.
+
+Current validated results:
+- **Saturday vs Sunday steps**: supported
+  - Saturday median steps: `~8079`
+  - Sunday median steps: `~2822`
+  - Mann-Whitney `p ≈ 6.1e-05`
+  - bootstrap median-difference CI: roughly `[2606, 8348]`
+  - effect size: Cliff's delta `~0.365`
+- **Awake stress (D) -> next-night recovery (D+1)**: supported
+  - Spearman rho `~ -0.285`
+  - 95% bootstrap CI roughly `[-0.366, -0.197]`
+  - `p ≈ 2.0e-10`
+- **Awake stress (D) -> next-night sleep stress (D+1)**: supported
+  - Spearman rho `~ +0.266`
+  - 95% bootstrap CI roughly `[0.179, 0.351]`
+  - `p ≈ 4.7e-09`
+- **Tuesday higher stress than other weekdays**: weak / inconclusive
+  - Tuesday median awake stress is higher descriptively (`~58` vs `~54`)
+  - omnibus weekday difference is not significant in the current strict slice
+  - planned Tuesday-vs-rest contrast is also weak (`p ≈ 0.079`)
+
+Interpretation:
+- the strongest public directional claims are no longer only visual impressions
+- the Tuesday observation remains a useful descriptive note, but not a validated headline result
 
 ## Main Result: Low Recovery Classification Works Moderately
 
@@ -134,4 +164,4 @@ If Stage 3 continues, the most promising additions are:
 
 1. Add lag and rolling features (`D-1`, trailing 3-day means, recent stress load)
 2. Keep binary targets primary; avoid expanding regression unless a better feature layer appears
-3. Add brief statistical validation summaries so Stage 2 findings and Stage 3 modeling tell one coherent story
+3. Expand validation only if it materially strengthens the public narrative; avoid broad hypothesis sprawl
