@@ -68,6 +68,7 @@ If you open only one file after this page, start with [the case study](docs/case
 
 Start here for the portfolio narrative, then use the links below for technical depth:
 - [Case study](docs/case_study.md)
+- [Stage 3](docs/stage3.md)
 - [Relationships notebook](notebooks/04_eda_relationships.ipynb)
 - [Distributions notebook](notebooks/03_eda_distributions.ipynb)
 
@@ -77,6 +78,7 @@ Start here for the portfolio narrative, then use the links below for technical d
 - [Stage 0](docs/stage0.md)
 - [Stage 1](docs/stage1.md)
 - [Stage 2](docs/stage2.md)
+- [Stage 3](docs/stage3.md)
 - [CLI](docs/cli.md)
 - [Privacy](docs/privacy.md)
 

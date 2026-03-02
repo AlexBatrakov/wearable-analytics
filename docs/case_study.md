@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This project turns local Garmin wearable exports into a privacy-safe analytics workflow that is strong enough to use as a DS/DA portfolio case study. The raw source data is messy: nested JSON, multiple export families, changing coverage over time, and model-derived device metrics that can be informative but are not always trustworthy at face value. To make the data usable, the project builds an end-to-end workflow: discover raw files, ingest them into parquet checkpoints, sanitize sensitive fields, generate a data dictionary, label day-level quality, and only then move into exploratory analysis. The final EDA is organized into four notebooks that cover coverage/readiness, time-series behavior, distributions and segmentation, and directed cross-metric relationships. The result is a repo that demonstrates not only plotting ability, but also data hygiene, quality-aware analysis, and careful interpretation of observational signals.
+This project turns local Garmin wearable exports into a privacy-safe analytics workflow that is strong enough to use as a DS/DA portfolio case study. The raw source data is messy: nested JSON, multiple export families, changing coverage over time, and model-derived device metrics that can be informative but are not always trustworthy at face value. To make the data usable, the project builds an end-to-end workflow: discover raw files, ingest them into parquet checkpoints, sanitize sensitive fields, generate a data dictionary, label day-level quality, and only then move into exploratory analysis. The final EDA is organized into four notebooks that cover coverage/readiness, time-series behavior, distributions and segmentation, and directed cross-metric relationships. A first Stage 3 pass then turns the strongest day-to-night finding into an explicit modeling task. The result is a repo that demonstrates not only plotting ability, but also data hygiene, quality-aware analysis, careful interpretation of observational signals, and a compact time-aware modeling baseline.
 
 ## Problem Framing
 
@@ -41,6 +41,7 @@ Core project stages:
 - **Stage 0**: discover raw files, ingest nested JSON, build canonical parquet datasets
 - **Stage 1**: sanitize outputs, generate a data dictionary, and label day-level quality
 - **Stage 2**: run notebook-based EDA with explicit quality-aware analysis slices
+- **Stage 3**: validate and model `day D -> next-night` sleep outcomes with compact scikit-learn baselines
 
 This matters because the repo is not just about “making charts”; it shows a complete local analytics workflow that can absorb imperfect personal data without pretending the imperfections do not exist.
 
@@ -125,6 +126,32 @@ The composition of the day matters too. A larger `awakeRestShare` tends to prece
 
 There are also smaller but still interesting secondary effects. Very high-intensity activity is associated with shorter next-night REM duration, while total daily steps have much weaker and less intuitive next-night effects. That distinction is useful because it suggests ordinary movement and high-intensity load should not be treated as interchangeable. Another small but interpretable same-day pattern is that longer sleep is followed by fewer active hours, which is a reminder that some relationships in wearable data reflect time-budget tradeoffs rather than “better” or “worse” behavior in the abstract.
 
+## Stage 3 Modeling Result
+
+The strongest Stage 2 directional finding was that higher daytime stress tends to precede weaker next-night recovery. Stage 3 turns that into a compact predictive task rather than leaving it as a visual observation only.
+
+The current headline modeling task is:
+- predict whether `next-night sleepRecoveryScore < 75`
+
+This threshold is intentionally a compromise. A stricter cutoff like `< 70` makes the positive class too rare for a clean baseline story, while a median-style split near `79/80` loses too much of the “bad night” interpretation. With the current time-ordered `60/20/20` split, `< 75` produces a usable but still meaningfully adverse class.
+
+The best interpretable models are sparse logistic variants built on a very small set of daytime features, especially:
+- `awakeAverageStressLevel`
+- `maxHeartRate`
+- `bodyBatteryLowest`
+
+On the current test split, these sparse classifiers land around:
+- balanced accuracy: **~0.64**
+- ROC-AUC: **~0.64-0.65**
+- PR-AUC: **~0.35**
+- F1: **~0.46**
+
+This is not a strong production predictor, but it is a real predictive signal on noisy single-subject wearable data. The practical interpretation is that daytime signals can act as a moderate **risk flag** for poor next-night recovery, even if they are not precise enough to support exact score prediction.
+
+A nonlinear benchmark (`HistGradientBoostingClassifier`) performs slightly better on ranking metrics, reaching roughly **ROC-AUC ~0.68** and **PR-AUC ~0.40**, but the sparse logistic model remains easier to explain and defend in a portfolio setting.
+
+Just as importantly, Stage 3 keeps a negative result instead of hiding it: current day-level awake aggregates do **not** beat a simple median baseline when asked to predict exact next-night numeric targets (`sleepRecoveryScore`, `sleepOverallScore`, `sleepQualityScore`, or `avgSleepStress`). That is analytically useful because it draws a clear boundary between what the present feature layer can and cannot support.
+
 ## What This Demonstrates as a DS/DA Project
 
 This repo demonstrates more than one skill category:
@@ -133,6 +160,8 @@ This repo demonstrates more than one skill category:
 - **Privacy-aware preprocessing**: sanitize is treated as a first-class stage, not as a cosmetic cleanup
 - **Quality-rule design**: strict and loose readiness labels make downstream analysis more defensible
 - **EDA structuring**: the analysis is split into coverage, time series, distributions/segmentation, and relationships rather than dumped into one notebook
+- **Time-aware modeling**: a compact Stage 3 modeling layer evaluates predictive tasks with contiguous train/validation/test splits rather than random shuffling
+- **Feature selection and honest benchmarking**: sparse linear models, nonlinear baselines, and negative results are all kept in view
 - **Interpretation discipline**: findings are framed as observational and cross-checked with artifact review
 - **Reproducible repo organization**: CLI, tests, docs, and notebooks fit together as one workflow
 
@@ -147,6 +176,8 @@ This is still a single-subject observational dataset. The metrics are wearable-d
 - [Notebook 02: curated time series](../notebooks/02_eda_timeseries.ipynb)
 - [Notebook 03: distributions + segmentation](../notebooks/03_eda_distributions.ipynb)
 - [Notebook 04: relationships + artifact review](../notebooks/04_eda_relationships.ipynb)
+- [Notebook 05: Stage 3 modeling baseline](../notebooks/05_modeling_recovery.ipynb)
 - [Pipeline overview](pipeline.md)
 - [Stage 1: sanitize, data dictionary, quality](stage1.md)
 - [Stage 2: EDA details](stage2.md)
+- [Stage 3: validation and modeling](stage3.md)

@@ -18,6 +18,7 @@ This repo now has two layers:
 - [Stage 0](stage0.md): raw discovery + ingestion + build parquet outputs
 - [Stage 1](stage1.md): sanitize + data dictionary + quality labeling
 - [Stage 2](stage2.md): EDA notebooks and interpretation
+- [Stage 3](stage3.md): initial validation and modeling
 
 ## Documentation map
 
@@ -29,6 +30,7 @@ This repo now has two layers:
 - [Stage 0 details](stage0.md)
 - [Stage 1 details](stage1.md)
 - [Stage 2 details](stage2.md)
+- [Stage 3 details](stage3.md)
 
 ## Outputs at a glance
 
@@ -52,6 +54,8 @@ This repo now has two layers:
 	- `notebooks/02_eda_timeseries.ipynb`
 	- `notebooks/03_eda_distributions.ipynb` (distributions + segmented comparisons)
 	- `notebooks/04_eda_relationships.ipynb` (relationships + grouped correlations + targeted validation + lightweight artifact review)
+- **Notebook (Stage 3)**
+	- `notebooks/05_modeling_recovery.ipynb` (validation + modeling baseline)
 
 ## Quick run
 
