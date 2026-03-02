@@ -14,6 +14,12 @@ If you open only one file after this page, start with [the case study](docs/case
 - Structured EDA across coverage, time series, distributions, segmentation, and directed relationship analysis
 - Reproducible Python project organization with CLI workflows, tests, and CI-backed iteration
 
+## Role Fit
+
+- Strongest fit: `DS generalist`, `Data Analyst`, `Product/Analytics`, and analytics-heavy data roles that value messy real-world data handling as much as final charts.
+- Signals: raw nested JSON ingestion, privacy-safe preprocessing, quality-aware analysis, explicit limitations, and reproducible Python packaging.
+- Framing: this repository emphasizes trustworthy analytics and interpretable findings over heavy production ML, which is intentional for the portfolio story.
+
 ## If You Have 60 Seconds
 
 1. [Case study](docs/case_study.md)
@@ -99,6 +105,18 @@ Open notebooks:
 ```bash
 jupyter lab
 ```
+
+## Public Demo
+
+If you do not have private Garmin exports, you can still exercise the public Stage 1 workflow on a tiny committed sample:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/setup_public_demo.py
+garmin-analytics data-dictionary --markdown-mode both
+garmin-analytics quality
+```
+
+Details: [Public demo](docs/public_demo.md)
 
 ## Privacy
 
