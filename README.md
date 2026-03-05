@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/AlexBatrakov/wearable-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexBatrakov/wearable-analytics/actions/workflows/ci.yml)
 
-Garmin Wearable Analytics is a privacy-first case study built on local Garmin exports. It turns messy nested JSON into curated parquet tables, applies sanitization and quality gating before analysis, and uses notebook-driven EDA to surface interpretable behavioral and recovery patterns. The project is packaged as a balanced DS/DA portfolio piece rather than a notebook dump or a pure engineering exercise.
+Garmin Wearable Analytics is a privacy-first case study built on local Garmin exports. It turns messy nested JSON into curated parquet tables, applies sanitization and quality gating before analysis, and uses notebook-driven EDA to surface interpretable behavioral and recovery patterns. The project is packaged as a balanced DS/DA portfolio artifact that combines analytical depth with reproducible engineering practices.
 
 If you open only one file after this page, start with [the case study](docs/case_study.md).
 
@@ -13,6 +13,7 @@ If you open only one file after this page, start with [the case study](docs/case
 - Quality labeling and artifact review, including strict vs loose readiness logic and suspicious-day triage
 - SQL-first analytics layer (`DuckDB` primary + compact `PostgreSQL` showcase) with CTE/window/view patterns
 - Structured EDA across coverage, time series, distributions, segmentation, and directed relationship analysis
+- Time-aware Stage 3 extension with statistical validation plus classification/regression baselines
 - Reproducible Python project organization with CLI workflows, tests, and CI-backed iteration
 
 ## Role Fit
@@ -24,9 +25,9 @@ If you open only one file after this page, start with [the case study](docs/case
 ## If You Have 60 Seconds
 
 1. [Case study](docs/case_study.md)
-2. [Relationships notebook](notebooks/04_eda_relationships.ipynb)
-3. [Distributions notebook](notebooks/03_eda_distributions.ipynb)
-4. [Pipeline overview](docs/pipeline.md)
+2. [Stage 3 (validation + modeling)](docs/stage3.md)
+3. [SQL layer (DuckDB + PostgreSQL showcase)](docs/sql_layer.md)
+4. [Relationships notebook](notebooks/04_eda_relationships.ipynb)
 
 ## Headline Findings
 
@@ -66,24 +67,29 @@ If you open only one file after this page, start with [the case study](docs/case
 - loose labels: **good 93.45%, partial 0.86%, bad 5.69%**
 - corrupted stress-only days: **21 (3.62%)**
 
+## Stage 3 Snapshot
+
+- Primary task: predict whether `next-night sleepRecoveryScore < 75` with contiguous time-ordered splits.
+- Best interpretable model family: sparse logistic variants using compact daytime stress/heart-rate/body-battery context.
+- Typical test performance range: balanced accuracy **~0.64**, ROC-AUC **~0.64-0.68**, PR-AUC **~0.35-0.40**.
+- Statistical validation supports key directional findings (for example, `daytime awake stress -> lower next-night recovery`).
+
 ## Technical Appendix / Deep Dive
 
 Start here for the portfolio narrative, then use the links below for technical depth:
-- [Case study](docs/case_study.md)
-- [Stage 3](docs/stage3.md)
-- [Relationships notebook](notebooks/04_eda_relationships.ipynb)
-- [Distributions notebook](notebooks/03_eda_distributions.ipynb)
-
-- [Overview](docs/overview.md)
-- [Pipeline](docs/pipeline.md)
-- [EDA guide](docs/eda.md)
-- [Stage 0](docs/stage0.md)
-- [Stage 1](docs/stage1.md)
-- [Stage 2](docs/stage2.md)
-- [Stage 3](docs/stage3.md)
-- [SQL layer](docs/sql_layer.md)
-- [CLI](docs/cli.md)
-- [Privacy](docs/privacy.md)
+- [Case study](docs/case_study.md) - recruiter-friendly project narrative and key findings.
+- [Relationships notebook](notebooks/04_eda_relationships.ipynb) - directional `D -> D+1` relationships and artifact checks.
+- [Distributions notebook](notebooks/03_eda_distributions.ipynb) - metric distributions and segmented behavior patterns.
+- [Overview](docs/overview.md) - map of stages, outputs, and how to navigate the repository.
+- [Pipeline](docs/pipeline.md) - end-to-end flow from raw exports to analysis artifacts.
+- [EDA guide](docs/eda.md) - notebook purpose, structure, and interpretation scope.
+- [Stage 0](docs/stage0.md) - discovery, ingestion, and parquet build details.
+- [Stage 1](docs/stage1.md) - sanitize, data dictionary, and quality labeling.
+- [Stage 2](docs/stage2.md) - EDA workflow and promoted observational findings.
+- [Stage 3](docs/stage3.md) - predictive modeling and lightweight statistical validation.
+- [SQL layer](docs/sql_layer.md) - DuckDB mart, SQL query pack, and PostgreSQL showcase.
+- [CLI](docs/cli.md) - command reference, flags, outputs, and run order.
+- [Privacy](docs/privacy.md) - guardrails for local-only data and safe publishing boundaries.
 
 ## Quickstart
 
@@ -103,6 +109,11 @@ garmin-analytics ingest-sleep
 garmin-analytics build-daily
 garmin-analytics sanitize
 garmin-analytics quality
+```
+
+Optional SQL layer:
+
+```bash
 garmin-analytics build-sql-mart
 garmin-analytics run-sql-portfolio
 ```
@@ -121,6 +132,8 @@ If you do not have private Garmin exports, you can still exercise the public Sta
 PYTHONPATH=src .venv/bin/python scripts/setup_public_demo.py
 garmin-analytics data-dictionary --markdown-mode both
 garmin-analytics quality
+garmin-analytics build-sql-mart
+garmin-analytics run-sql-portfolio
 ```
 
 Details: [Public demo](docs/public_demo.md)
@@ -138,6 +151,7 @@ PostgreSQL (compact production-like mirror):
 
 - setup + runbook: [examples/postgres_showcase/README.md](examples/postgres_showcase/README.md)
 - schema/views/queries: `examples/postgres_showcase/`
+- SQL skills demonstrated: CTEs, window functions, day-to-next-day (`D -> D+1`) alignment, and view-based analytics contracts.
 
 ## Privacy
 
