@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:16
+    container_name: wearable_analytics_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wearable_analytics
+    ports:
+      - "54329:5432"
+    volumes:
+      - wearable_analytics_pgdata:/var/lib/postgresql/data
+      - ../../:/workspace:ro
+
+volumes:
+  wearable_analytics_pgdata:
