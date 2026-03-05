@@ -226,6 +226,8 @@ data/**/*.csv
 
 # Exported EDA figures
 reports/figures/
+# Exported SQL result snapshots (generated from local personal data)
+reports/sql/
 
 # Local notebook snapshots/backups (keep local, do not version)
 notebooks/_archive/

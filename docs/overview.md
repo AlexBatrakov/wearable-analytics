@@ -17,6 +17,7 @@ This repo now has two layers:
 
 - [Stage 0](stage0.md): raw discovery + ingestion + build parquet outputs
 - [Stage 1](stage1.md): sanitize + data dictionary + quality labeling
+- [Stage 1.5](sql_layer.md): optional SQL mart (DuckDB primary + PostgreSQL showcase)
 - [Stage 2](stage2.md): EDA notebooks and interpretation
 - [Stage 3](stage3.md): initial validation and modeling
 
@@ -29,6 +30,7 @@ This repo now has two layers:
 - [Privacy rules](privacy.md)
 - [Stage 0 details](stage0.md)
 - [Stage 1 details](stage1.md)
+- [SQL layer details](sql_layer.md)
 - [Stage 2 details](stage2.md)
 - [Stage 3 details](stage3.md)
 
@@ -49,6 +51,10 @@ This repo now has two layers:
 	- `reports/quality_summary.md`
 	- `reports/suspicious_days_artifacts.csv`
 	- `reports/suspicious_days.csv`
+- **SQL outputs (Stage 1.5, optional)**
+	- `data/processed/analytics.duckdb`
+	- `reports/sql/duckdb/*.csv`
+	- `examples/postgres_showcase/*` (PostgreSQL mirror assets)
 - **Notebooks (Stage 2)**
 	- `notebooks/01_eda_prepare.ipynb`
 	- `notebooks/02_eda_timeseries.ipynb`
@@ -64,6 +70,7 @@ This repo now has two layers:
 garmin-analytics discover
 garmin-analytics ingest-uds && garmin-analytics ingest-sleep && garmin-analytics build-daily
 garmin-analytics sanitize && garmin-analytics quality
+garmin-analytics build-sql-mart && garmin-analytics run-sql-portfolio
 jupyter lab
 ```
 

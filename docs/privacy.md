@@ -21,6 +21,7 @@ This repository is privacy-first:
 
 - `data/` is gitignored and should remain local-only.
 - Figures are exported to reports/figures/ (gitignored).
+- SQL snapshots are exported to `reports/sql/duckdb/` (gitignored).
 - The local pre-commit hook prevents accidental staging of raw exports.
 
 ## Sanitization gate

@@ -97,4 +97,7 @@ Proceed to Stage 2 after:
 - dictionary reports are available,
 - quality summary and suspicious-day diagnostics are reviewed.
 
+Optional extension before Stage 2:
+- build the SQL mart layer via [SQL layer](sql_layer.md) to produce DuckDB tables/views and reproducible SQL query outputs.
+
 For command options and thresholds, see [CLI](cli.md).

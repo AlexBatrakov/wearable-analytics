@@ -1,7 +1,7 @@
 # Pipeline
 
 This project follows:
-**discover → ingest → build → sanitize → quality → EDA**
+**discover → ingest → build → sanitize → quality → SQL mart (optional) → EDA**
 
 Why this matters: the repository is structured as a full local analytics workflow, not as a notebook-only analysis. That distinction is part of the portfolio value of the project.
 
@@ -54,6 +54,23 @@ Why this stage exists:
 - Documents schema/semantics through data-dictionary reports.
 - Quantifies day-level analysis readiness (signal coverage) via strict/loose quality labels.
 
+## SQL mart layer (Stage 1.5, optional)
+
+1. `build-sql-mart` materializes a local DuckDB mart:
+   - `data/processed/analytics.duckdb`
+   - tables: `fact_daily`, `fact_sleep`, `fact_quality`
+   - views: `vw_day_to_next_sleep`, `vw_weekday_profiles`, `vw_sleep_nights`
+2. `run-sql-portfolio` executes `sql/duckdb/*.sql` and exports:
+   - `reports/sql/duckdb/*.csv`
+3. Optional PostgreSQL mirror is available under:
+   - `examples/postgres_showcase/`
+
+Why this stage exists:
+- Adds explicit SQL evidence (CTE + window + view modeling) to the portfolio story.
+- Keeps the same day-level analytical contract across Python and SQL.
+- Provides both embedded analytics DB (DuckDB) and server-style SQL showcase (PostgreSQL).
+- Keeps SQL outputs local-only (`reports/sql/duckdb`) to avoid publishing personal row-level snapshots.
+
 ## EDA flow (Stage 2)
 
 - `notebooks/01_eda_prepare.ipynb` defines the Stage 2 analysis contract, builds canonical EDA slices, and provides a coverage-aware overview (retention, label distribution, monthly signal coverage, day-level calendar heatmap).
@@ -70,4 +87,5 @@ See stage pages for command-level detail:
 - [Case study](case_study.md)
 - [Stage 0](stage0.md)
 - [Stage 1](stage1.md)
+- [SQL layer](sql_layer.md)
 - [Stage 2](stage2.md)

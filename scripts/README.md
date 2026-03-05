@@ -3,13 +3,25 @@
 Helper utilities for schema exploration and data previews. These are optional and not required for the ingestion pipeline.
 
 ## Notes
-- Scripts write outputs only to data/interim, which is ignored by git.
+- Scripts write outputs to local generated paths (`data/interim`, `data/processed`, and `reports/sql`); treat these as local artifacts from private data.
 - Preview scripts scrub identifier-like fields (uuid, userProfilePk/userProfilePK, deviceId).
 - Some older preview files may be stale and may need regeneration.
 - `make_*_previews.py` scripts import `garmin_analytics`, so run them with `PYTHONPATH=src` or after `pip install -e .`.
 - `setup_public_demo.py` installs the committed public sample into `data/processed/` so Stage 1 can be exercised without private Garmin exports.
 
 ## Script types
+
+### SQL showcase utilities
+
+- `run_duckdb_portfolio_queries.py`: run all `sql/duckdb/*.sql` files against `data/processed/analytics.duckdb` and export CSV outputs to `reports/sql/duckdb`
+- `export_postgres_showcase_csv.py`: export compact CSV extracts from processed parquet files to `data/interim/postgres_showcase` for PostgreSQL loading
+
+Examples:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/run_duckdb_portfolio_queries.py
+PYTHONPATH=src .venv/bin/python scripts/export_postgres_showcase_csv.py
+```
 
 ### Public demo setup
 

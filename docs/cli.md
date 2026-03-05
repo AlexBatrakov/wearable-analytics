@@ -18,6 +18,7 @@ PYTHONPATH=src python -m garmin_analytics --help
 - Generated artifacts are written under `data/interim`, `data/processed`, and `reports`.
 - `data/` is gitignored and must remain local.
 - Timeseries figures are exported locally to `reports/figures/timeseries/` and should not be committed.
+- SQL query snapshots are exported locally to `reports/sql/duckdb/` and should not be committed.
 
 ## Stage 0 commands
 
@@ -179,6 +180,53 @@ Wrote reports/suspicious_days_artifacts.csv
 Wrote data/processed/daily_quality.parquet
 ```
 
+## Stage 1.5 commands (optional SQL layer)
+
+### build-sql-mart
+
+Purpose: materialize a local DuckDB analytics mart from Stage 1 outputs.
+
+```bash
+garmin-analytics build-sql-mart
+```
+
+Expected outputs:
+
+- `data/processed/analytics.duckdb`
+- tables: `fact_daily`, `fact_sleep`, `fact_quality`
+- views: `vw_day_to_next_sleep`, `vw_weekday_profiles`, `vw_sleep_nights`
+
+Expected output shape:
+
+```text
+DuckDB mart: data/processed/analytics.duckdb
+Daily source: data/processed/daily_sanitized.parquet
+Sleep source: data/processed/sleep_sanitized.parquet
+Quality source: data/processed/daily_quality.parquet
+Tables: fact_daily=<N>, fact_sleep=<N>, fact_quality=<N>
+Views: vw_day_to_next_sleep=<N>, vw_weekday_profiles=<K>, vw_sleep_nights=<N>
+```
+
+### run-sql-portfolio
+
+Purpose: execute portfolio SQL files under `sql/duckdb` and export CSV result snapshots.
+
+```bash
+garmin-analytics run-sql-portfolio
+```
+
+Expected outputs:
+
+- `reports/sql/duckdb/*.csv`
+
+Expected output shape:
+
+```text
+Executed SQL files: <M>
+01_quality_mix.sql -> reports/sql/duckdb/01_quality_mix.csv (rows=<R>, cols=<C>)
+...
+```
+
 ## Module-mode equivalent
 
 Replace `garmin-analytics <command>` with:
@@ -195,4 +243,6 @@ PYTHONPATH=src python -m garmin_analytics <command>
 4. `garmin-analytics build-daily`
 5. `garmin-analytics sanitize`
 6. `garmin-analytics quality`
-7. Open notebooks (`jupyter lab`)
+7. `garmin-analytics build-sql-mart` (optional SQL layer)
+8. `garmin-analytics run-sql-portfolio` (optional SQL layer)
+9. Open notebooks (`jupyter lab`)

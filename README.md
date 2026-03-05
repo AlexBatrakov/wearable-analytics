@@ -11,6 +11,7 @@ If you open only one file after this page, start with [the case study](docs/case
 - Robust ingestion and normalization of heterogeneous wearable exports (`UDS` + sleep JSON) into stable day-level tables
 - Privacy-aware preprocessing, with sanitization treated as a hard boundary before sharing or analysis
 - Quality labeling and artifact review, including strict vs loose readiness logic and suspicious-day triage
+- SQL-first analytics layer (`DuckDB` primary + compact `PostgreSQL` showcase) with CTE/window/view patterns
 - Structured EDA across coverage, time series, distributions, segmentation, and directed relationship analysis
 - Reproducible Python project organization with CLI workflows, tests, and CI-backed iteration
 
@@ -53,6 +54,7 @@ If you open only one file after this page, start with [the case study](docs/case
 
 - **Pipeline / ingestion**: discover raw Garmin exports, flatten nested JSON, and build parquet checkpoints
 - **Quality & privacy**: sanitize sensitive fields, generate a data dictionary, label day readiness, and isolate suspicious artifacts
+- **SQL layer (optional)**: build a DuckDB mart, run portfolio SQL packs, and mirror a compact schema in PostgreSQL
 - **EDA notebooks**: prepare coverage-aware slices, inspect time series, analyze distributions, and validate cross-metric relationships
 - **Case study & docs**: recruiter-facing summary first, technical stage docs and notebooks second
 
@@ -79,6 +81,7 @@ Start here for the portfolio narrative, then use the links below for technical d
 - [Stage 1](docs/stage1.md)
 - [Stage 2](docs/stage2.md)
 - [Stage 3](docs/stage3.md)
+- [SQL layer](docs/sql_layer.md)
 - [CLI](docs/cli.md)
 - [Privacy](docs/privacy.md)
 
@@ -100,6 +103,8 @@ garmin-analytics ingest-sleep
 garmin-analytics build-daily
 garmin-analytics sanitize
 garmin-analytics quality
+garmin-analytics build-sql-mart
+garmin-analytics run-sql-portfolio
 ```
 
 Open notebooks:
@@ -119,6 +124,20 @@ garmin-analytics quality
 ```
 
 Details: [Public demo](docs/public_demo.md)
+
+## SQL Showcase
+
+DuckDB (primary local analytics mart):
+
+```bash
+garmin-analytics build-sql-mart
+garmin-analytics run-sql-portfolio
+```
+
+PostgreSQL (compact production-like mirror):
+
+- setup + runbook: [examples/postgres_showcase/README.md](examples/postgres_showcase/README.md)
+- schema/views/queries: `examples/postgres_showcase/`
 
 ## Privacy
 

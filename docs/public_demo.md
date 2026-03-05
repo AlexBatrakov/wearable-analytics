@@ -13,6 +13,7 @@ The public demo supports:
 - installing a small `daily_sanitized.parquet`
 - generating the data dictionary reports
 - generating quality labels and suspicious-day reports
+- building the DuckDB SQL mart and running SQL portfolio queries
 
 It does **not** try to reproduce the full local workflow:
 - no raw Garmin export ingestion
@@ -35,6 +36,8 @@ This writes:
 ```bash
 garmin-analytics data-dictionary --markdown-mode both
 garmin-analytics quality
+garmin-analytics build-sql-mart
+garmin-analytics run-sql-portfolio
 ```
 
 Expected outputs:
@@ -45,6 +48,8 @@ Expected outputs:
 - `reports/suspicious_days.csv`
 - `reports/suspicious_days_artifacts.csv`
 - `data/processed/daily_quality.parquet`
+- `data/processed/analytics.duckdb`
+- `reports/sql/duckdb/*.csv`
 
 ## Privacy note
 
