@@ -19,6 +19,7 @@ from .quality.quality import (
 )
 from .reports.data_dictionary import DictionaryOptions, build_data_dictionary, write_dictionary_reports
 from .sanitize import sanitize_parquet_file, write_sanitize_report
+from .sql import build_sql_mart, run_sql_directory
 from .util.io import (
     ensure_dir,
     get_export_dir,
@@ -43,6 +44,13 @@ def _safe_relpath(path: Path, base: Path) -> str:
 def _info(message: str) -> None:
     """Log an informational message."""
     console.print(message)
+
+
+def _pick_existing_path(*candidates: Path) -> Path | None:
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
 
 
 def _normalize_and_validate_calendar_date(df: pd.DataFrame, *, label: str) -> None:
@@ -455,3 +463,125 @@ def quality(
         _info(f"Wrote {suspicious_artifacts_path}")
     if maybe_parquet is not None:
         _info(f"Wrote {maybe_parquet}")
+
+
+@app.command("build-sql-mart")
+def build_sql_mart_command(
+    db_path: Path = typer.Option(
+        None,
+        "--db-path",
+        help="Output DuckDB path (default: data/processed/analytics.duckdb)",
+    ),
+    daily_path: Path = typer.Option(
+        None,
+        "--daily-path",
+        help="Daily source parquet (default: daily_sanitized.parquet, fallback: daily.parquet)",
+    ),
+    sleep_path: Path = typer.Option(
+        None,
+        "--sleep-path",
+        help="Sleep source parquet (default: sleep_sanitized.parquet, fallback: sleep.parquet)",
+    ),
+    quality_path: Path = typer.Option(
+        None,
+        "--quality-path",
+        help="Quality source parquet (default: daily_quality.parquet if present)",
+    ),
+    overwrite: bool = typer.Option(
+        True,
+        "--overwrite/--no-overwrite",
+        help="Overwrite existing DuckDB file if it already exists",
+    ),
+) -> None:
+    """Build a local DuckDB mart from Stage 1 parquet outputs."""
+    processed_dir = get_processed_dir()
+
+    resolved_daily = daily_path or _pick_existing_path(
+        processed_dir / "daily_sanitized.parquet",
+        processed_dir / "daily.parquet",
+    )
+    if resolved_daily is None:
+        _info(
+            "Missing daily parquet source. Expected one of: "
+            f"{processed_dir / 'daily_sanitized.parquet'} or {processed_dir / 'daily.parquet'}"
+        )
+        raise typer.Exit(code=1)
+
+    resolved_sleep = sleep_path or _pick_existing_path(
+        processed_dir / "sleep_sanitized.parquet",
+        processed_dir / "sleep.parquet",
+    )
+    resolved_quality = quality_path or _pick_existing_path(processed_dir / "daily_quality.parquet")
+
+    resolved_db_path = db_path or (processed_dir / "analytics.duckdb")
+    try:
+        summary = build_sql_mart(
+            db_path=resolved_db_path,
+            daily_path=resolved_daily,
+            sleep_path=resolved_sleep,
+            quality_path=resolved_quality,
+            overwrite=overwrite,
+        )
+    except (FileNotFoundError, ModuleNotFoundError) as err:
+        _info(str(err))
+        raise typer.Exit(code=1) from err
+
+    _info(f"DuckDB mart: {summary.db_path}")
+    _info(f"Daily source: {summary.daily_source}")
+    _info(f"Sleep source: {summary.sleep_source or 'fact_daily fallback'}")
+    _info(f"Quality source: {summary.quality_source or 'fact_daily fallback'}")
+    _info(
+        "Tables: "
+        f"fact_daily={summary.fact_daily_rows}, "
+        f"fact_sleep={summary.fact_sleep_rows}, "
+        f"fact_quality={summary.fact_quality_rows}"
+    )
+    _info(
+        "Views: "
+        f"vw_day_to_next_sleep={summary.day_to_next_sleep_rows}, "
+        f"vw_weekday_profiles={summary.weekday_profile_rows}"
+    )
+
+
+@app.command("run-sql-portfolio")
+def run_sql_portfolio(
+    db_path: Path = typer.Option(
+        None,
+        "--db-path",
+        help="DuckDB file (default: data/processed/analytics.duckdb)",
+    ),
+    query_dir: Path = typer.Option(
+        None,
+        "--query-dir",
+        help="Directory with SQL query files (default: sql/duckdb)",
+    ),
+    out_dir: Path = typer.Option(
+        None,
+        "--out-dir",
+        help="Directory for CSV outputs (default: reports/sql/duckdb)",
+    ),
+) -> None:
+    """Run SQL showcase queries against the DuckDB mart and export CSV results."""
+    repo_root = get_repo_root()
+    processed_dir = get_processed_dir()
+
+    resolved_db = db_path or (processed_dir / "analytics.duckdb")
+    resolved_query_dir = query_dir or (repo_root / "sql" / "duckdb")
+    resolved_out_dir = out_dir or (repo_root / "reports" / "sql" / "duckdb")
+
+    try:
+        results = run_sql_directory(
+            db_path=resolved_db,
+            query_dir=resolved_query_dir,
+            output_dir=resolved_out_dir,
+        )
+    except (FileNotFoundError, ModuleNotFoundError) as err:
+        _info(str(err))
+        raise typer.Exit(code=1) from err
+
+    _info(f"Executed SQL files: {len(results)}")
+    for result in results:
+        _info(
+            f"{result.query_path.name} -> {result.output_csv_path} "
+            f"(rows={result.rows}, cols={result.columns})"
+        )

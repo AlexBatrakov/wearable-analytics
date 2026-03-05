@@ -13,5 +13,13 @@ def test_cli_help_lists_commands() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     output = result.output
-    for cmd in ["discover", "ingest-uds", "ingest-sleep", "build-daily", "sanitize"]:
+    for cmd in [
+        "discover",
+        "ingest-uds",
+        "ingest-sleep",
+        "build-daily",
+        "sanitize",
+        "build-sql-mart",
+        "run-sql-portfolio",
+    ]:
         assert cmd in output
