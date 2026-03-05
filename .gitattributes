@@ -1,3 +1,7 @@
 # Keep notebooks in the repo, but exclude them from GitHub language statistics
 # so the repository is classified by the source code (Python).
 *.ipynb linguist-detectable=false
+
+# Force SQL files to be counted in GitHub Linguist language stats.
+*.sql linguist-language=SQL
+*.sql linguist-detectable=true
