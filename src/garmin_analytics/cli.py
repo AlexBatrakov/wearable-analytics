@@ -10,6 +10,10 @@ from rich.console import Console
 from .ingest.sleep import parse_sleep_files
 from .ingest.uds import parse_uds_files
 from .monitoring import (
+    build_monitoring_feature_catalog,
+    build_monitoring_feature_catalog_markdown,
+    build_monitoring_feature_library,
+    build_monitoring_feature_library_summary_markdown,
     build_monitoring_daily_features,
     build_monitoring_foundation_summary_markdown,
     build_semantic_sleep_windows,
@@ -324,6 +328,152 @@ def build_monitoring_features_command(
     )
 
     _info(f"Wrote {len(feature_df)} rows to {resolved_output}")
+    _info(f"Wrote {resolved_report}")
+
+
+@app.command("build-monitoring-feature-library")
+def build_monitoring_feature_library_command(
+    heart_rate_path: Path = typer.Option(
+        None,
+        "--heart-rate-path",
+        help="Monitoring heart-rate parquet (default: data/processed/monitoring_heart_rate.parquet)",
+    ),
+    stress_path: Path = typer.Option(
+        None,
+        "--stress-path",
+        help="Monitoring stress parquet (default: data/processed/monitoring_stress.parquet)",
+    ),
+    windows_path: Path = typer.Option(
+        None,
+        "--windows-path",
+        help="Semantic windows parquet (default: data/processed/semantic_sleep_windows.parquet)",
+    ),
+    foundation_features_path: Path = typer.Option(
+        None,
+        "--foundation-features-path",
+        help="Packet 02 foundation features parquet (default: data/processed/monitoring_daily_features.parquet)",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        help="Monitoring feature library parquet (default: data/processed/monitoring_feature_library.parquet)",
+    ),
+    report: Path = typer.Option(
+        None,
+        "--report",
+        help="Aggregate markdown summary (default: reports/monitoring_feature_library_summary.md)",
+    ),
+    catalog_csv: Path = typer.Option(
+        None,
+        "--catalog-csv",
+        help="Monitoring feature catalog CSV (default: reports/monitoring_feature_catalog.csv)",
+    ),
+    catalog_md: Path = typer.Option(
+        None,
+        "--catalog-md",
+        help="Monitoring feature catalog markdown summary (default: reports/monitoring_feature_catalog.md)",
+    ),
+    write_catalog: bool = typer.Option(
+        True,
+        "--catalog/--no-catalog",
+        help="Write feature catalog CSV and markdown outputs.",
+    ),
+    max_hr_bpm: float = typer.Option(
+        192.0,
+        "--max-hr-bpm",
+        help="Maximum heart-rate parameter for HR zone fractions.",
+    ),
+    gap_break_minutes: float = typer.Option(
+        2.0,
+        "--gap-break-minutes",
+        help="Timestamp gap, in minutes, that breaks differences and episodes.",
+    ),
+    min_valid_minutes: int = typer.Option(
+        5,
+        "--min-valid-minutes",
+        help="Minimum valid observations for window and trend summaries.",
+    ),
+    min_paired_minutes: int = typer.Option(
+        10,
+        "--min-paired-minutes",
+        help="Minimum paired HR/stress observations for correlations and regressions.",
+    ),
+) -> None:
+    """Build the Packet 03 interpretable monitoring feature library."""
+    repo_root = get_repo_root()
+    processed_dir = get_processed_dir()
+    resolved_hr_path = heart_rate_path or (processed_dir / "monitoring_heart_rate.parquet")
+    resolved_stress_path = stress_path or (processed_dir / "monitoring_stress.parquet")
+    resolved_windows_path = windows_path or (processed_dir / "semantic_sleep_windows.parquet")
+    resolved_foundation_path = foundation_features_path or (
+        processed_dir / "monitoring_daily_features.parquet"
+    )
+    resolved_output = output or (processed_dir / "monitoring_feature_library.parquet")
+    resolved_report = report or (repo_root / "reports" / "monitoring_feature_library_summary.md")
+    resolved_catalog_csv = catalog_csv or (repo_root / "reports" / "monitoring_feature_catalog.csv")
+    resolved_catalog_md = catalog_md or (repo_root / "reports" / "monitoring_feature_catalog.md")
+
+    for path in [
+        resolved_hr_path,
+        resolved_stress_path,
+        resolved_windows_path,
+        resolved_foundation_path,
+    ]:
+        if not path.exists():
+            _info(f"Missing input: {path}")
+            raise typer.Exit(code=1)
+
+    try:
+        feature_df = build_monitoring_feature_library(
+            heart_rate_df=pd.read_parquet(resolved_hr_path),
+            stress_df=pd.read_parquet(resolved_stress_path),
+            semantic_windows_df=pd.read_parquet(resolved_windows_path),
+            foundation_features_df=pd.read_parquet(resolved_foundation_path),
+            max_hr_bpm=max_hr_bpm,
+            gap_break_minutes=gap_break_minutes,
+            min_valid_minutes=min_valid_minutes,
+            min_paired_minutes=min_paired_minutes,
+        )
+    except ValueError as err:
+        _info(str(err))
+        raise typer.Exit(code=1) from err
+
+    ensure_dir(resolved_output.parent)
+    feature_df.to_parquet(resolved_output, index=False, engine="pyarrow")
+
+    catalog_df = None
+    if write_catalog:
+        catalog_df = build_monitoring_feature_catalog(feature_df)
+        ensure_dir(resolved_catalog_csv.parent)
+        catalog_df.to_csv(resolved_catalog_csv, index=False)
+        ensure_dir(resolved_catalog_md.parent)
+        resolved_catalog_md.write_text(
+            build_monitoring_feature_catalog_markdown(
+                catalog_df,
+                csv_path=_safe_relpath(resolved_catalog_csv, repo_root),
+            ),
+            encoding="utf-8",
+        )
+
+    ensure_dir(resolved_report.parent)
+    resolved_report.write_text(
+        build_monitoring_feature_library_summary_markdown(
+            feature_df,
+            max_hr_bpm=max_hr_bpm,
+            gap_break_minutes=gap_break_minutes,
+            min_valid_minutes=min_valid_minutes,
+            min_paired_minutes=min_paired_minutes,
+            catalog_df=catalog_df,
+            catalog_csv_path=_safe_relpath(resolved_catalog_csv, repo_root),
+            catalog_md_path=_safe_relpath(resolved_catalog_md, repo_root),
+        ),
+        encoding="utf-8",
+    )
+
+    _info(f"Wrote {len(feature_df)} rows and {feature_df.shape[1]} columns to {resolved_output}")
+    if write_catalog:
+        _info(f"Wrote {resolved_catalog_csv}")
+        _info(f"Wrote {resolved_catalog_md}")
     _info(f"Wrote {resolved_report}")
 
 

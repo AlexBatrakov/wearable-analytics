@@ -17,12 +17,24 @@ from .foundation import (
     normalize_stress_frame,
     resolve_timestamp_16,
 )
+from .features import (
+    MonitoringFeatureLibraryConfig,
+    build_monitoring_feature_catalog,
+    build_monitoring_feature_catalog_markdown,
+    build_monitoring_feature_library,
+    build_monitoring_feature_library_summary_markdown,
+)
 
 __all__ = [
     "HEART_RATE_COLUMNS",
     "FIT_EPOCH_S",
+    "MonitoringFeatureLibraryConfig",
     "STRESS_COLUMNS",
     "SEMANTIC_WINDOW_COLUMNS",
+    "build_monitoring_feature_catalog",
+    "build_monitoring_feature_catalog_markdown",
+    "build_monitoring_feature_library",
+    "build_monitoring_feature_library_summary_markdown",
     "build_monitoring_daily_features",
     "build_monitoring_foundation_summary_markdown",
     "build_semantic_sleep_windows",

@@ -20,6 +20,7 @@ def test_cli_help_lists_commands() -> None:
         "ingest-monitoring-fit",
         "build-semantic-windows",
         "build-monitoring-features",
+        "build-monitoring-feature-library",
         "build-daily",
         "sanitize",
         "build-sql-mart",
