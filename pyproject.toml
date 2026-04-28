@@ -18,6 +18,7 @@ dependencies = [
   "rich",
   "typer",
   "python-dotenv",
+  "garmin-fit-sdk",
   "scipy",
   "scikit-learn",
 ]

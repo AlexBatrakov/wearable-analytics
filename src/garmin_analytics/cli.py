@@ -9,6 +9,12 @@ from rich.console import Console
 
 from .ingest.sleep import parse_sleep_files
 from .ingest.uds import parse_uds_files
+from .monitoring import (
+    build_monitoring_daily_features,
+    build_monitoring_foundation_summary_markdown,
+    build_semantic_sleep_windows,
+    materialize_monitoring_fit,
+)
 from .quality.quality import (
     QualityConfig,
     apply_quality_labels,
@@ -163,6 +169,162 @@ def ingest_sleep() -> None:
     ensure_dir(output_path.parent)
     df.to_parquet(output_path, index=False, engine="pyarrow")
     _info(f"Wrote {len(df)} rows to {output_path}")
+
+
+@app.command("ingest-monitoring-fit")
+def ingest_monitoring_fit(
+    input_dir: Path = typer.Option(
+        None,
+        "--input-dir",
+        help="Directory containing Garmin Uploaded Files FIT exports (default: data/raw/DI_CONNECT/DI-Connect-Uploaded-Files)",
+    ),
+    output_dir: Path = typer.Option(
+        None,
+        "--output-dir",
+        help="Output directory for monitoring parquets (default: data/processed)",
+    ),
+) -> None:
+    """Decode monitoring FIT heart-rate and stress tables."""
+    export_dir = get_export_dir()
+    resolved_input_dir = input_dir or (export_dir / "DI-Connect-Uploaded-Files")
+    resolved_output_dir = output_dir or get_processed_dir()
+
+    if not resolved_input_dir.exists():
+        _info(f"Missing input directory: {resolved_input_dir}")
+        raise typer.Exit(code=1)
+
+    try:
+        summary = materialize_monitoring_fit(
+            input_dir=resolved_input_dir,
+            output_dir=resolved_output_dir,
+        )
+    except ModuleNotFoundError as err:
+        _info(str(err))
+        raise typer.Exit(code=1) from err
+
+    _info(f"FIT files seen: {summary.fit_files_seen}")
+    _info(f"Monitoring files decoded: {summary.monitoring_files_decoded}")
+    _info(f"Decode errors skipped: {summary.decode_errors}")
+    _info(f"Heart-rate rows: {summary.heart_rate_rows}")
+    _info(f"Stress rows: {summary.stress_rows}")
+    _info(f"Wrote {summary.heart_rate_output_path}")
+    _info(f"Wrote {summary.stress_output_path}")
+
+
+@app.command("build-semantic-windows")
+def build_semantic_windows_command(
+    sleep_path: Path = typer.Option(
+        None,
+        "--sleep-path",
+        help="Sleep parquet source (default: data/processed/sleep.parquet)",
+    ),
+    daily_path: Path = typer.Option(
+        None,
+        "--daily-path",
+        help="Daily aggregate parquet with Garmin local/GMT wellness timestamps (default: daily_uds.parquet, fallback: daily.parquet)",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        help="Semantic windows parquet (default: data/processed/semantic_sleep_windows.parquet)",
+    ),
+) -> None:
+    """Build sleep-aware semantic day windows from the sleep table."""
+    processed_dir = get_processed_dir()
+    resolved_sleep_path = sleep_path or (processed_dir / "sleep.parquet")
+    resolved_daily_path = daily_path or _pick_existing_path(
+        processed_dir / "daily_uds.parquet",
+        processed_dir / "daily.parquet",
+    )
+    resolved_output = output or (processed_dir / "semantic_sleep_windows.parquet")
+
+    if not resolved_sleep_path.exists():
+        _info(f"Missing input: {resolved_sleep_path}")
+        raise typer.Exit(code=1)
+    if daily_path is not None and not daily_path.exists():
+        _info(f"Missing input: {daily_path}")
+        raise typer.Exit(code=1)
+
+    try:
+        sleep_df = pd.read_parquet(resolved_sleep_path)
+        daily_df = pd.read_parquet(resolved_daily_path) if resolved_daily_path is not None else None
+        windows_df = build_semantic_sleep_windows(sleep_df, daily_df=daily_df)
+    except ValueError as err:
+        _info(str(err))
+        raise typer.Exit(code=1) from err
+
+    ensure_dir(resolved_output.parent)
+    windows_df.to_parquet(resolved_output, index=False, engine="pyarrow")
+    _info(f"Wrote {len(windows_df)} rows to {resolved_output}")
+    _info(f"Daily offset source: {resolved_daily_path or 'none'}")
+    if "local_utc_offset_minutes" in windows_df.columns:
+        offset_rows = int(pd.to_numeric(windows_df["local_utc_offset_minutes"], errors="coerce").notna().sum())
+        _info(f"Rows with local UTC offset: {offset_rows}")
+
+
+@app.command("build-monitoring-features")
+def build_monitoring_features_command(
+    heart_rate_path: Path = typer.Option(
+        None,
+        "--heart-rate-path",
+        help="Monitoring heart-rate parquet (default: data/processed/monitoring_heart_rate.parquet)",
+    ),
+    stress_path: Path = typer.Option(
+        None,
+        "--stress-path",
+        help="Monitoring stress parquet (default: data/processed/monitoring_stress.parquet)",
+    ),
+    windows_path: Path = typer.Option(
+        None,
+        "--windows-path",
+        help="Semantic windows parquet (default: data/processed/semantic_sleep_windows.parquet)",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        help="Monitoring feature parquet (default: data/processed/monitoring_daily_features.parquet)",
+    ),
+    report: Path = typer.Option(
+        None,
+        "--report",
+        help="Aggregate markdown summary (default: reports/monitoring_foundation_summary.md)",
+    ),
+) -> None:
+    """Build minimal baseline sleep/wake monitoring features."""
+    repo_root = get_repo_root()
+    processed_dir = get_processed_dir()
+    resolved_hr_path = heart_rate_path or (processed_dir / "monitoring_heart_rate.parquet")
+    resolved_stress_path = stress_path or (processed_dir / "monitoring_stress.parquet")
+    resolved_windows_path = windows_path or (processed_dir / "semantic_sleep_windows.parquet")
+    resolved_output = output or (processed_dir / "monitoring_daily_features.parquet")
+    resolved_report = report or (repo_root / "reports" / "monitoring_foundation_summary.md")
+
+    for path in [resolved_hr_path, resolved_stress_path, resolved_windows_path]:
+        if not path.exists():
+            _info(f"Missing input: {path}")
+            raise typer.Exit(code=1)
+
+    heart_rate_df = pd.read_parquet(resolved_hr_path)
+    stress_df = pd.read_parquet(resolved_stress_path)
+    windows_df = pd.read_parquet(resolved_windows_path)
+    feature_df = build_monitoring_daily_features(heart_rate_df, stress_df, windows_df)
+
+    ensure_dir(resolved_output.parent)
+    feature_df.to_parquet(resolved_output, index=False, engine="pyarrow")
+
+    ensure_dir(resolved_report.parent)
+    resolved_report.write_text(
+        build_monitoring_foundation_summary_markdown(
+            heart_rate_df=heart_rate_df,
+            stress_df=stress_df,
+            semantic_windows_df=windows_df,
+            feature_df=feature_df,
+        ),
+        encoding="utf-8",
+    )
+
+    _info(f"Wrote {len(feature_df)} rows to {resolved_output}")
+    _info(f"Wrote {resolved_report}")
 
 
 @app.command("build-daily")
