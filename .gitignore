@@ -232,6 +232,10 @@ reports/sql/
 # Local notebook snapshots/backups (keep local, do not version)
 notebooks/_archive/
 
-# Internal markdown files for notes and documentation
+# Local project operating system
+.project_local/
+.experiments/
+
+# Legacy local notes kept during migration to .project_local
 docs/AGENT_SOURCE_OF_TRUTH.md
 docs/internal/
