@@ -19,13 +19,21 @@ SEMANTIC_WINDOW_COLUMNS = [
     "local_utc_offset_source",
     "sleep_start_utc",
     "sleep_end_utc",
+    "next_observed_sleep_start_utc",
     "next_sleep_start_utc",
     "sleep_start_local",
     "sleep_end_local",
+    "next_observed_sleep_start_local",
     "next_sleep_start_local",
+    "next_sleep_status",
     "sleep_duration_hours",
+    "observed_wake_duration_hours",
     "wake_duration_hours",
 ]
+
+NEXT_SLEEP_OBSERVED_WITHIN_CUTOFF = "observed_within_cutoff"
+NEXT_SLEEP_MISSING_AFTER_CUTOFF = "missing_after_cutoff"
+NEXT_SLEEP_NO_FOLLOWING_OBSERVED = "no_following_observed_sleep"
 
 
 @dataclass(frozen=True)
@@ -389,8 +397,13 @@ def _utc_plus_offset_to_local(utc_values: pd.Series, offsets: pd.Series) -> pd.S
     return shifted
 
 
+def _local_minus_offset_to_utc(local_values: pd.Series, offsets: pd.Series) -> pd.Series:
+    shifted = local_values - pd.to_timedelta(pd.to_numeric(offsets, errors="coerce"), unit="m")
+    return pd.to_datetime(shifted, errors="coerce").dt.tz_localize("UTC")
+
+
 def build_semantic_sleep_windows(sleep_df: pd.DataFrame, daily_df: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Build complete sleep-end-to-next-sleep semantic windows from sleep rows."""
+    """Build sleep-anchored semantic windows with explicit next-sleep status."""
     required = {"calendarDate", "sleepStartTimestampGMT", "sleepEndTimestampGMT"}
     missing = sorted(required - set(sleep_df.columns))
     if missing:
@@ -417,7 +430,7 @@ def build_semantic_sleep_windows(sleep_df: pd.DataFrame, daily_df: pd.DataFrame 
         windows["local_utc_offset_minutes"] = windows["local_utc_offset_minutes"].astype("Int64")
         windows["local_utc_offset_source"] = windows["local_utc_offset_source"].fillna("missing")
 
-    windows["next_sleep_start_utc"] = windows["sleep_start_utc"].shift(-1)
+    windows["next_observed_sleep_start_utc"] = windows["sleep_start_utc"].shift(-1)
     next_offset = windows["local_utc_offset_minutes"].shift(-1)
     windows["sleep_start_local"] = _utc_plus_offset_to_local(
         windows["sleep_start_utc"], windows["local_utc_offset_minutes"]
@@ -425,24 +438,38 @@ def build_semantic_sleep_windows(sleep_df: pd.DataFrame, daily_df: pd.DataFrame 
     windows["sleep_end_local"] = _utc_plus_offset_to_local(
         windows["sleep_end_utc"], windows["local_utc_offset_minutes"]
     )
-    windows["next_sleep_start_local"] = _utc_plus_offset_to_local(
-        windows["next_sleep_start_utc"], next_offset
+    windows["next_observed_sleep_start_local"] = _utc_plus_offset_to_local(
+        windows["next_observed_sleep_start_utc"], next_offset
     )
 
     seconds_per_hour = 3600.0
     windows["sleep_duration_hours"] = (
         windows["sleep_end_utc"] - windows["sleep_start_utc"]
     ).dt.total_seconds() / seconds_per_hour
-    windows["wake_duration_hours"] = (
-        windows["next_sleep_start_utc"] - windows["sleep_end_utc"]
+    windows["observed_wake_duration_hours"] = (
+        windows["next_observed_sleep_start_utc"] - windows["sleep_end_utc"]
     ).dt.total_seconds() / seconds_per_hour
 
-    valid = (
-        (windows["sleep_duration_hours"] > 0)
-        & (windows["wake_duration_hours"] > 0)
-        & windows["next_sleep_start_utc"].notna()
+    cutoff_offsets = windows["local_utc_offset_minutes"].fillna(0)
+    wake_start_local_for_cutoff = _utc_plus_offset_to_local(windows["sleep_end_utc"], cutoff_offsets)
+    cutoff_local = wake_start_local_for_cutoff.dt.normalize() + pd.Timedelta(days=1, hours=12)
+    cutoff_utc = _local_minus_offset_to_utc(cutoff_local, cutoff_offsets)
+    accepted = (
+        windows["next_observed_sleep_start_utc"].notna()
+        & (windows["next_observed_sleep_start_utc"] > windows["sleep_end_utc"])
+        & (windows["next_observed_sleep_start_utc"] <= cutoff_utc)
     )
-    return windows.loc[valid, SEMANTIC_WINDOW_COLUMNS].reset_index(drop=True)
+    has_next_observed = windows["next_observed_sleep_start_utc"].notna()
+
+    windows["next_sleep_status"] = NEXT_SLEEP_NO_FOLLOWING_OBSERVED
+    windows.loc[has_next_observed, "next_sleep_status"] = NEXT_SLEEP_MISSING_AFTER_CUTOFF
+    windows.loc[accepted, "next_sleep_status"] = NEXT_SLEEP_OBSERVED_WITHIN_CUTOFF
+    windows["next_sleep_start_utc"] = windows["next_observed_sleep_start_utc"].where(accepted)
+    windows["next_sleep_start_local"] = windows["next_observed_sleep_start_local"].where(accepted)
+    windows["wake_duration_hours"] = windows["observed_wake_duration_hours"].where(accepted)
+
+    valid_sleep = windows["sleep_duration_hours"] > 0
+    return windows.loc[valid_sleep, SEMANTIC_WINDOW_COLUMNS].reset_index(drop=True)
 
 
 def _indexed_by_timestamp(df: pd.DataFrame, timestamp_col: str = "timestamp_utc") -> pd.DataFrame:
@@ -532,6 +559,27 @@ def _phase_features(
     return record
 
 
+def _empty_phase_features(phase: str) -> dict[str, float | int]:
+    record: dict[str, float | int] = {
+        f"{phase}_hr_total_count": 0,
+        f"{phase}_stress_total_count": 0,
+        f"{phase}_stress_unmeasurable_count": 0,
+        f"{phase}_stress_status_value_count": 0,
+        f"{phase}_stress_nonvalid_count": 0,
+        f"{phase}_hr_valid_count": 0,
+        f"{phase}_stress_valid_count": 0,
+        f"{phase}_hr_coverage_fraction": np.nan,
+        f"{phase}_stress_coverage_fraction": np.nan,
+        f"{phase}_stress_unmeasurable_fraction": np.nan,
+        f"{phase}_stress_status_value_fraction": np.nan,
+        f"{phase}_stress_nonvalid_fraction": np.nan,
+    }
+    for metric in ["hr", "stress"]:
+        for suffix in ["mean", "median", "std", "p75", "p90"]:
+            record[f"{phase}_{metric}_{suffix}"] = np.nan
+    return record
+
+
 def build_monitoring_daily_features(
     heart_rate_df: pd.DataFrame,
     stress_df: pd.DataFrame,
@@ -544,23 +592,34 @@ def build_monitoring_daily_features(
     hr = _indexed_by_timestamp(normalize_heart_rate_frame(heart_rate_df))
     stress = _indexed_by_timestamp(normalize_stress_frame(stress_df))
     windows = semantic_windows_df.copy()
-    for column in ["sleep_start_utc", "sleep_end_utc", "next_sleep_start_utc"]:
+    for column in ["sleep_start_utc", "sleep_end_utc", "next_observed_sleep_start_utc", "next_sleep_start_utc"]:
+        if column not in windows.columns:
+            windows[column] = pd.NaT
         windows[column] = pd.to_datetime(windows[column], errors="coerce", utc=True)
     windows["calendarDate"] = pd.to_datetime(windows["calendarDate"], errors="coerce").dt.normalize()
     if "local_utc_offset_minutes" not in windows.columns:
         windows["local_utc_offset_minutes"] = pd.Series(pd.NA, index=windows.index, dtype="Int64")
     if "local_utc_offset_source" not in windows.columns:
         windows["local_utc_offset_source"] = "missing"
-    for column in ["sleep_start_local", "sleep_end_local", "next_sleep_start_local"]:
+    if "next_sleep_status" not in windows.columns:
+        windows["next_sleep_status"] = NEXT_SLEEP_MISSING_AFTER_CUTOFF
+    for column in [
+        "sleep_start_local",
+        "sleep_end_local",
+        "next_observed_sleep_start_local",
+        "next_sleep_start_local",
+    ]:
         if column not in windows.columns:
             windows[column] = pd.NaT
+    if "observed_wake_duration_hours" not in windows.columns:
+        windows["observed_wake_duration_hours"] = np.nan
+    if "wake_duration_hours" not in windows.columns:
+        windows["wake_duration_hours"] = np.nan
     required_columns = [
         "calendarDate",
         "sleep_start_utc",
         "sleep_end_utc",
-        "next_sleep_start_utc",
         "sleep_duration_hours",
-        "wake_duration_hours",
     ]
     windows = windows.dropna(subset=required_columns).sort_values("calendarDate")
 
@@ -572,12 +631,18 @@ def build_monitoring_daily_features(
             "local_utc_offset_source": row.local_utc_offset_source,
             "sleep_start_utc": row.sleep_start_utc,
             "sleep_end_utc": row.sleep_end_utc,
+            "next_observed_sleep_start_utc": row.next_observed_sleep_start_utc,
             "next_sleep_start_utc": row.next_sleep_start_utc,
             "sleep_start_local": row.sleep_start_local,
             "sleep_end_local": row.sleep_end_local,
+            "next_observed_sleep_start_local": row.next_observed_sleep_start_local,
             "next_sleep_start_local": row.next_sleep_start_local,
+            "next_sleep_status": row.next_sleep_status,
             "sleep_duration_hours": float(row.sleep_duration_hours),
-            "wake_duration_hours": float(row.wake_duration_hours),
+            "observed_wake_duration_hours": float(row.observed_wake_duration_hours)
+            if pd.notna(row.observed_wake_duration_hours)
+            else np.nan,
+            "wake_duration_hours": float(row.wake_duration_hours) if pd.notna(row.wake_duration_hours) else np.nan,
         }
         record.update(
             _phase_features(
@@ -589,16 +654,19 @@ def build_monitoring_daily_features(
                 stress,
             )
         )
-        record.update(
-            _phase_features(
-                "wake",
-                row.sleep_end_utc,
-                row.next_sleep_start_utc,
-                float(row.wake_duration_hours),
-                hr,
-                stress,
+        if pd.notna(row.next_sleep_start_utc) and pd.notna(row.wake_duration_hours):
+            record.update(
+                _phase_features(
+                    "wake",
+                    row.sleep_end_utc,
+                    row.next_sleep_start_utc,
+                    float(row.wake_duration_hours),
+                    hr,
+                    stress,
+                )
             )
-        )
+        else:
+            record.update(_empty_phase_features("wake"))
         records.append(record)
 
     return pd.DataFrame.from_records(records).sort_values("calendarDate").reset_index(drop=True)
@@ -657,6 +725,32 @@ def build_monitoring_foundation_summary_markdown(
         if "local_utc_offset_minutes" in semantic_windows_df.columns and not semantic_windows_df.empty
         else 0
     )
+    next_sleep_status_counts = (
+        semantic_windows_df["next_sleep_status"].value_counts(dropna=False).to_dict()
+        if "next_sleep_status" in semantic_windows_df.columns and not semantic_windows_df.empty
+        else {}
+    )
+    observed_wake = (
+        pd.to_numeric(semantic_windows_df["observed_wake_duration_hours"], errors="coerce")
+        if "observed_wake_duration_hours" in semantic_windows_df.columns
+        else pd.Series(dtype=float)
+    )
+    accepted_wake = (
+        pd.to_numeric(semantic_windows_df["wake_duration_hours"], errors="coerce")
+        if "wake_duration_hours" in semantic_windows_df.columns
+        else pd.Series(dtype=float)
+    )
+
+    def _count_gt(series: pd.Series, threshold: float) -> int:
+        return int((series > threshold).sum()) if not series.empty else 0
+
+    def _max_or_na(series: pd.Series) -> str:
+        finite = series.dropna()
+        return f"{float(finite.max()):.2f}" if not finite.empty else "n/a"
+
+    def _median_or_na(series: pd.Series) -> str:
+        finite = series.dropna()
+        return f"{float(finite.median()):.2f}" if not finite.empty else "n/a"
 
     lines = [
         "# Monitoring Foundation Summary",
@@ -680,18 +774,23 @@ def build_monitoring_foundation_summary_markdown(
         "",
         "## Semantic Windows",
         "",
-        f"- Complete semantic sleep/wake windows: `{len(semantic_windows_df):,}`",
+        f"- Observed sleep-anchored rows: `{len(semantic_windows_df):,}`",
+        f"- Next sleep status counts: `{next_sleep_status_counts}`",
+        f"- Raw observed wake gaps >24h: `{_count_gt(observed_wake, 24)}`",
+        f"- Raw observed wake gaps >48h: `{_count_gt(observed_wake, 48)}`",
+        f"- Raw observed wake gaps >7d: `{_count_gt(observed_wake, 168)}`",
+        f"- Max raw observed wake duration hours: `{_max_or_na(observed_wake)}`",
+        f"- Median accepted wake duration hours: `{_median_or_na(accepted_wake)}`",
+        f"- Max accepted wake duration hours: `{_max_or_na(accepted_wake)}`",
     ]
 
     if not semantic_windows_df.empty:
         sleep_median = pd.to_numeric(
             semantic_windows_df["sleep_duration_hours"], errors="coerce"
         ).median()
-        wake_median = pd.to_numeric(semantic_windows_df["wake_duration_hours"], errors="coerce").median()
         lines.extend(
             [
                 f"- Median sleep duration hours: `{sleep_median:.2f}`",
-                f"- Median wake duration hours: `{wake_median:.2f}`",
             ]
         )
 
@@ -725,6 +824,9 @@ def build_monitoring_foundation_summary_markdown(
             "",
             "## Scope Notes",
             "",
+            "- `next_observed_sleep_start_utc` preserves the raw next Garmin sleep observation.",
+            "- `next_sleep_start_utc` is populated only when that observation is within the local-noon cutoff.",
+            "- Unknown next sleep boundaries are represented explicitly instead of being dropped.",
             "- Stress values outside `0..100` are preserved as raw status values and excluded from numeric stress metrics.",
             "- This packet intentionally stops at HR/stress monitoring, semantic windows, coverage diagnostics, and a minimal baseline feature table.",
             "- Activity FIT files, movement monitoring, unknown FIT message families, cluster labels, and sleep-rhythm claims remain out of scope.",

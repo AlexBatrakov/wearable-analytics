@@ -19,37 +19,46 @@ This report summarizes the local minute-level monitoring foundation built from G
 
 ## Semantic Windows
 
-- Complete semantic sleep/wake windows: `473`
+- Observed sleep-anchored rows: `474`
+- Next sleep status counts: `{'observed_within_cutoff': 421, 'missing_after_cutoff': 52, 'no_following_observed_sleep': 1}`
+- Raw observed wake gaps >24h: `52`
+- Raw observed wake gaps >48h: `27`
+- Raw observed wake gaps >7d: `11`
+- Max raw observed wake duration hours: `3830.30`
+- Median accepted wake duration hours: `15.48`
+- Max accepted wake duration hours: `23.50`
 - Median sleep duration hours: `8.55`
-- Median wake duration hours: `15.68`
 
 ## Local-Time Offset Metadata
 
-- Windows with local UTC offset: `473`
-- Local UTC offset source counts: `{'start_end_agree': 471, 'start_end_disagree_using_start': 2}`
+- Windows with local UTC offset: `474`
+- Local UTC offset source counts: `{'start_end_agree': 472, 'start_end_disagree_using_start': 2}`
 
 ## Baseline Features
 
-- Feature rows: `473`
+- Feature rows: `474`
 
 ## Coverage Diagnostics
 
 - `sleep_hr_coverage_fraction` median: `0.688`
-- `wake_hr_coverage_fraction` median: `0.873`
+- `wake_hr_coverage_fraction` median: `0.876`
 - `sleep_stress_coverage_fraction` median: `0.971`
-- `wake_stress_coverage_fraction` median: `0.727`
+- `wake_stress_coverage_fraction` median: `0.743`
 
 ## Stress Status Diagnostics
 
 - `sleep_stress_unmeasurable_fraction` median: `0.023`
 - `sleep_stress_status_value_fraction` median: `0.000`
 - `sleep_stress_nonvalid_fraction` median: `0.023`
-- `wake_stress_unmeasurable_fraction` median: `0.252`
+- `wake_stress_unmeasurable_fraction` median: `0.244`
 - `wake_stress_status_value_fraction` median: `0.000`
-- `wake_stress_nonvalid_fraction` median: `0.252`
+- `wake_stress_nonvalid_fraction` median: `0.244`
 
 ## Scope Notes
 
+- `next_observed_sleep_start_utc` preserves the raw next Garmin sleep observation.
+- `next_sleep_start_utc` is populated only when that observation is within the local-noon cutoff.
+- Unknown next sleep boundaries are represented explicitly instead of being dropped.
 - Stress values outside `0..100` are preserved as raw status values and excluded from numeric stress metrics.
 - This packet intentionally stops at HR/stress monitoring, semantic windows, coverage diagnostics, and a minimal baseline feature table.
 - Activity FIT files, movement monitoring, unknown FIT message families, cluster labels, and sleep-rhythm claims remain out of scope.
