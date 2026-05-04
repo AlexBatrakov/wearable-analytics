@@ -52,36 +52,66 @@ CATALOG_COLUMNS = [
 
 
 @dataclass(frozen=True)
-class MonitoringFeatureLibraryConfig:
-    """Configuration for interpretable monitoring feature engineering."""
+class MonitoringFeaturesFullConfig:
+    """Configuration for the wide monitoring feature table."""
 
     max_hr_bpm: float = 192.0
     gap_break_minutes: float = 2.0
     min_valid_minutes: int = 5
     min_paired_minutes: int = 10
+    min_sleep_duration_hours: float = 2.0
+    max_sleep_duration_hours: float = 16.0
+    min_wake_duration_hours: float = 6.0
+    max_wake_duration_hours: float = 30.0
+    boundary_gap_tolerance_minutes: float = 60.0
+    endpoint_band_minutes: float = 30.0
+    endpoint_search_horizon_minutes: float = 90.0
 
 
 PHASES = ("sleep", "wake")
 SIGNALS = ("hr", "stress")
 STRESS_STATE_COLUMNS = (
+    "resting",
     "resting_0_25",
+    "low",
     "low_26_50",
+    "medium",
     "medium_51_75",
+    "high",
     "high_76_100",
+    "active",
 )
 HR_ZONE_COLUMNS = (
     "below_zone1",
+    "zone1",
     "zone1_50_60",
+    "zone2",
     "zone2_60_70",
+    "zone3",
     "zone3_70_80",
+    "zone4",
     "zone4_80_90",
+    "zone5",
     "zone5_90_100",
     "above_mhr",
 )
+SEMANTIC_WINDOW_QUALITY_COLUMNS = {
+    "semantic_day_duration_hours",
+    "sleep_duration_plausible",
+    "wake_duration_plausible",
+    "semantic_day_duration_plausible",
+    "semantic_window_plausible",
+    "sleep_duration_outlier",
+    "wake_duration_outlier",
+    "wake_duration_gt_24h",
+    "wake_duration_gt_30h",
+    "wake_duration_gt_48h",
+}
 
 
 FEATURE_FAMILY_ORDER = [
     "identity/window metadata",
+    "semantic window quality",
     "foundation coverage",
     "distribution/shape",
     "stress state fractions",
@@ -133,6 +163,45 @@ def _coverage_fraction(valid_count: int, start: pd.Timestamp, end: pd.Timestamp)
     if expected <= 0:
         return np.nan
     return float(min(valid_count / expected, 1.0))
+
+
+def _flag(value: bool) -> int:
+    return int(bool(value))
+
+
+def _semantic_window_quality_features(
+    sleep_duration_hours: float,
+    wake_duration_hours: float,
+    config: MonitoringFeaturesFullConfig,
+) -> dict[str, float | int]:
+    semantic_day_duration_hours = float(sleep_duration_hours) + float(wake_duration_hours)
+    sleep_plausible = (
+        config.min_sleep_duration_hours
+        <= float(sleep_duration_hours)
+        <= config.max_sleep_duration_hours
+    )
+    wake_plausible = (
+        config.min_wake_duration_hours
+        <= float(wake_duration_hours)
+        <= config.max_wake_duration_hours
+    )
+    semantic_day_plausible = (
+        (config.min_sleep_duration_hours + config.min_wake_duration_hours)
+        <= semantic_day_duration_hours
+        <= (config.max_sleep_duration_hours + config.max_wake_duration_hours)
+    )
+    return {
+        "semantic_day_duration_hours": semantic_day_duration_hours,
+        "sleep_duration_plausible": _flag(sleep_plausible),
+        "wake_duration_plausible": _flag(wake_plausible),
+        "semantic_day_duration_plausible": _flag(semantic_day_plausible),
+        "semantic_window_plausible": _flag(sleep_plausible and wake_plausible and semantic_day_plausible),
+        "sleep_duration_outlier": _flag(not sleep_plausible),
+        "wake_duration_outlier": _flag(not wake_plausible),
+        "wake_duration_gt_24h": _flag(float(wake_duration_hours) > 24.0),
+        "wake_duration_gt_30h": _flag(float(wake_duration_hours) > 30.0),
+        "wake_duration_gt_48h": _flag(float(wake_duration_hours) > 48.0),
+    }
 
 
 def _nan_record(prefix: str, suffixes: list[str]) -> dict[str, float]:
@@ -427,6 +496,36 @@ def _missing_gap_features(
     return record
 
 
+def _boundary_coverage_features(
+    valid: pd.DataFrame,
+    value_col: str,
+    phase: str,
+    signal: str,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    boundary_gap_tolerance_minutes: float,
+) -> dict[str, float | int]:
+    prefix = f"{phase}_{signal}"
+    record: dict[str, float | int] = {
+        f"{prefix}_minutes_to_first_valid": np.nan,
+        f"{prefix}_minutes_from_last_valid_to_end": np.nan,
+        f"{prefix}_start_boundary_covered": 0,
+        f"{prefix}_end_boundary_covered": 0,
+    }
+    ordered = _sort_by_timestamp(valid.dropna(subset=[value_col]))
+    if ordered.empty:
+        return record
+    first_ts = pd.Timestamp(ordered.iloc[0]["timestamp_utc"])
+    last_ts = pd.Timestamp(ordered.iloc[-1]["timestamp_utc"])
+    minutes_to_first = _duration_minutes(start, first_ts)
+    minutes_from_last = _duration_minutes(last_ts, end)
+    record[f"{prefix}_minutes_to_first_valid"] = minutes_to_first
+    record[f"{prefix}_minutes_from_last_valid_to_end"] = minutes_from_last
+    record[f"{prefix}_start_boundary_covered"] = _flag(minutes_to_first <= boundary_gap_tolerance_minutes)
+    record[f"{prefix}_end_boundary_covered"] = _flag(minutes_from_last <= boundary_gap_tolerance_minutes)
+    return record
+
+
 def _run_lengths(
     timestamps: pd.Series,
     labels: pd.Series,
@@ -486,12 +585,13 @@ def _episode_stats(
     record: dict[str, float | int] = {
         f"{prefix}_episode_count": len(runs),
         f"{prefix}_total_minutes": int(sum(run[2] for run in runs)),
-        f"{prefix}_mean_duration_minutes": np.nan,
-        f"{prefix}_median_duration_minutes": np.nan,
-        f"{prefix}_max_duration_minutes": np.nan,
+        f"{prefix}_has_event": _flag(bool(runs)),
+        f"{prefix}_mean_duration_minutes": 0.0,
+        f"{prefix}_median_duration_minutes": 0.0,
+        f"{prefix}_max_duration_minutes": 0.0,
         f"{prefix}_time_to_first_minutes": np.nan,
         f"{prefix}_time_since_last_minutes": np.nan,
-        f"{prefix}_fragmentation_index": np.nan,
+        f"{prefix}_fragmentation_index": 0.0,
     }
     if not runs:
         return record
@@ -580,10 +680,10 @@ def _stress_episode_features(
     low_runs = _run_lengths(timestamps, labels, {"low_26_50"}, gap_break_minutes)
     recovery_runs = _run_lengths(timestamps, labels, {"resting_0_25"}, gap_break_minutes)
     record[f"{phase}_stress_longest_low_episode_minutes"] = (
-        float(max(run[2] for run in low_runs)) if low_runs else np.nan
+        float(max(run[2] for run in low_runs)) if low_runs else 0.0
     )
     record[f"{phase}_stress_longest_recovery_episode_minutes"] = (
-        float(max(run[2] for run in recovery_runs)) if recovery_runs else np.nan
+        float(max(run[2] for run in recovery_runs)) if recovery_runs else 0.0
     )
     return record
 
@@ -633,7 +733,7 @@ def _hr_episode_features(
     record.update(_transition_features(timestamps, labels, len(valid), f"{phase}_hr", gap_break_minutes))
     recovery_runs = _run_lengths(timestamps, labels, {"below_zone1"}, gap_break_minutes)
     record[f"{phase}_hr_longest_below_zone1_episode_minutes"] = (
-        float(max(run[2] for run in recovery_runs)) if recovery_runs else np.nan
+        float(max(run[2] for run in recovery_runs)) if recovery_runs else 0.0
     )
     return record
 
@@ -666,6 +766,29 @@ def _window_signal_stats(
     return record
 
 
+def _window_stress_raw_status_features(stress_subset: pd.DataFrame, window_prefix: str) -> dict[str, float]:
+    raw = pd.to_numeric(
+        stress_subset["stress_level_raw"] if "stress_level_raw" in stress_subset.columns else pd.Series(dtype=float),
+        errors="coerce",
+    )
+    total = int(raw.notna().sum())
+    if total == 0:
+        return {
+            f"{window_prefix}_stress_raw_valid_fraction": np.nan,
+            f"{window_prefix}_stress_raw_minus_1_fraction": np.nan,
+            f"{window_prefix}_stress_raw_minus_2_fraction": np.nan,
+            f"{window_prefix}_stress_raw_negative_fraction": np.nan,
+            f"{window_prefix}_stress_large_motion_proxy_fraction": np.nan,
+        }
+    return {
+        f"{window_prefix}_stress_raw_valid_fraction": float(((raw >= 0) & (raw <= 100)).sum() / total),
+        f"{window_prefix}_stress_raw_minus_1_fraction": float((raw == -1).sum() / total),
+        f"{window_prefix}_stress_raw_minus_2_fraction": float((raw == -2).sum() / total),
+        f"{window_prefix}_stress_raw_negative_fraction": float((raw < 0).sum() / total),
+        f"{window_prefix}_stress_large_motion_proxy_fraction": float((raw == -2).sum() / total),
+    }
+
+
 def _window_features(
     window_prefix: str,
     start: pd.Timestamp,
@@ -680,6 +803,7 @@ def _window_features(
     stress_valid = stress_subset.loc[stress_subset["stress_status"] == "valid"]
 
     record: dict[str, float | int] = {}
+    record[f"{window_prefix}_duration_minutes"] = _duration_minutes(start, end)
     record.update(
         _window_signal_stats(
             hr_valid,
@@ -707,6 +831,7 @@ def _window_features(
     else:
         record[f"{window_prefix}_stress_medium_or_high_fraction"] = np.nan
         record[f"{window_prefix}_stress_high_fraction"] = np.nan
+    record.update(_window_stress_raw_status_features(stress_subset, window_prefix))
     return record
 
 
@@ -928,6 +1053,9 @@ def _pre_sleep_features(
     stress_valid = stress.loc[stress["stress_status"] == "valid"].set_index("timestamp_utc", drop=False)
     record: dict[str, float | int] = {}
     for hours, start in [(2, pre2_start), (4, pre4_start)]:
+        window_prefix = f"pre_sleep_{hours}h"
+        stress_raw_subset = _time_slice(stress, start, next_sleep_start)
+        record[f"{window_prefix}_duration_minutes"] = _duration_minutes(start, next_sleep_start)
         record[f"pre_sleep_{hours}h_hr_mean"] = _mean_in_window(
             hr_valid,
             "heart_rate",
@@ -945,6 +1073,7 @@ def _pre_sleep_features(
             if len(stress_values) >= min_valid_minutes
             else np.nan
         )
+        record.update(_window_stress_raw_status_features(stress_raw_subset, window_prefix))
 
     for signal, frame, value_col in [
         ("hr", hr_valid, "heart_rate"),
@@ -958,6 +1087,47 @@ def _pre_sleep_features(
     return record
 
 
+def _endpoint_band_summary(
+    df: pd.DataFrame,
+    value_col: str,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    *,
+    side: str,
+    band_minutes: float,
+    search_horizon_minutes: float,
+    min_valid_minutes: int,
+) -> tuple[float, int, float]:
+    duration = _duration_minutes(start, end)
+    if duration <= 0:
+        return np.nan, 0, np.nan
+
+    band = min(float(band_minutes), duration)
+    horizon = min(float(search_horizon_minutes), duration)
+    max_offset = max(horizon - band, 0.0)
+    offsets = range(0, int(np.floor(max_offset)) + 1)
+
+    indexed = df.set_index("timestamp_utc", drop=False) if "timestamp_utc" in df.columns else df
+    for offset in offsets:
+        if side == "start":
+            band_start = start + pd.Timedelta(minutes=offset)
+            band_end = min(band_start + pd.Timedelta(minutes=band), end)
+            reported_offset = float(offset)
+        elif side == "end":
+            band_end = end - pd.Timedelta(minutes=offset)
+            band_start = max(start, band_end - pd.Timedelta(minutes=band))
+            reported_offset = float(offset)
+        else:
+            raise ValueError("side must be 'start' or 'end'")
+
+        subset = _time_slice(indexed, band_start, band_end)
+        values = _numeric_values(subset[value_col] if value_col in subset.columns else pd.Series(dtype=float))
+        if len(values) >= min_valid_minutes:
+            return float(values.mean()), int(len(values)), reported_offset
+
+    return np.nan, 0, np.nan
+
+
 def _trend_features(
     df: pd.DataFrame,
     value_col: str,
@@ -965,11 +1135,18 @@ def _trend_features(
     end: pd.Timestamp,
     prefix: str,
     min_valid_minutes: int,
+    endpoint_band_minutes: float,
+    endpoint_search_horizon_minutes: float,
 ) -> dict[str, float]:
     record = {
         f"{prefix}_slope_per_hour": np.nan,
         f"{prefix}_trend_r2": np.nan,
         f"{prefix}_end_minus_start": np.nan,
+        f"{prefix}_start_endpoint_valid_count": 0,
+        f"{prefix}_end_endpoint_valid_count": 0,
+        f"{prefix}_start_endpoint_offset_minutes": np.nan,
+        f"{prefix}_end_endpoint_offset_minutes": np.nan,
+        f"{prefix}_endpoint_contrast_defined": 0,
     }
     subset = _sort_by_timestamp(_time_slice(df, start, end).dropna(subset=[value_col]))
     if len(subset) < min_valid_minutes:
@@ -989,24 +1166,38 @@ def _trend_features(
     predicted = slope_per_minute * x + intercept
     total_ss = float(((y - y.mean()) ** 2).sum())
     residual_ss = float(((y - predicted) ** 2).sum())
-    first_30 = _mean_in_window(
+    indexed = subset.set_index("timestamp_utc", drop=False)
+    start_endpoint, start_count, start_offset = _endpoint_band_summary(
+        indexed,
+        value_col,
+        start,
+        end,
+        side="start",
+        band_minutes=endpoint_band_minutes,
+        search_horizon_minutes=endpoint_search_horizon_minutes,
+        min_valid_minutes=min_valid_minutes,
+    )
+    end_endpoint, end_count, end_offset = _endpoint_band_summary(
         subset.set_index("timestamp_utc", drop=False),
         value_col,
         start,
-        min(start + pd.Timedelta(minutes=30), end),
-        min_valid_minutes,
-    )
-    last_30 = _mean_in_window(
-        subset.set_index("timestamp_utc", drop=False),
-        value_col,
-        max(start, end - pd.Timedelta(minutes=30)),
         end,
-        min_valid_minutes,
+        side="end",
+        band_minutes=endpoint_band_minutes,
+        search_horizon_minutes=endpoint_search_horizon_minutes,
+        min_valid_minutes=min_valid_minutes,
     )
     record[f"{prefix}_slope_per_hour"] = float(slope_per_minute * 60.0)
     record[f"{prefix}_trend_r2"] = float(1.0 - residual_ss / total_ss) if total_ss > 0 else np.nan
+    record[f"{prefix}_start_endpoint_valid_count"] = start_count
+    record[f"{prefix}_end_endpoint_valid_count"] = end_count
+    record[f"{prefix}_start_endpoint_offset_minutes"] = start_offset
+    record[f"{prefix}_end_endpoint_offset_minutes"] = end_offset
+    record[f"{prefix}_endpoint_contrast_defined"] = _flag(pd.notna(start_endpoint) and pd.notna(end_endpoint))
     record[f"{prefix}_end_minus_start"] = (
-        last_30 - first_30 if pd.notna(first_30) and pd.notna(last_30) else np.nan
+        end_endpoint - start_endpoint
+        if pd.notna(start_endpoint) and pd.notna(end_endpoint)
+        else np.nan
     )
     return record
 
@@ -1017,7 +1208,7 @@ def _all_trend_features(
     next_sleep_start: pd.Timestamp,
     hr: pd.DataFrame,
     stress: pd.DataFrame,
-    min_valid_minutes: int,
+    config: MonitoringFeaturesFullConfig,
 ) -> dict[str, float]:
     hr_valid = hr.loc[hr["heart_rate_status"] == "valid"]
     stress_valid = stress.loc[stress["stress_status"] == "valid"]
@@ -1035,7 +1226,9 @@ def _all_trend_features(
                 start,
                 end,
                 f"{phase_prefix}_hr",
-                min_valid_minutes,
+                config.min_valid_minutes,
+                config.endpoint_band_minutes,
+                config.endpoint_search_horizon_minutes,
             )
         )
         record.update(
@@ -1045,7 +1238,9 @@ def _all_trend_features(
                 start,
                 end,
                 f"{phase_prefix}_stress",
-                min_valid_minutes,
+                config.min_valid_minutes,
+                config.endpoint_band_minutes,
+                config.endpoint_search_horizon_minutes,
             )
         )
     return record
@@ -1078,7 +1273,7 @@ def _phase_advanced_features(
     end: pd.Timestamp,
     hr: pd.DataFrame,
     stress: pd.DataFrame,
-    config: MonitoringFeatureLibraryConfig,
+    config: MonitoringFeaturesFullConfig,
 ) -> dict[str, float | int]:
     hr_subset = _time_slice(hr, start, end)
     stress_subset = _time_slice(stress, start, end)
@@ -1136,6 +1331,28 @@ def _phase_advanced_features(
             end,
             f"{phase}_stress",
             config.gap_break_minutes,
+        )
+    )
+    record.update(
+        _boundary_coverage_features(
+            hr_valid,
+            "heart_rate",
+            phase,
+            "hr",
+            start,
+            end,
+            config.boundary_gap_tolerance_minutes,
+        )
+    )
+    record.update(
+        _boundary_coverage_features(
+            stress_valid,
+            "stress_level",
+            phase,
+            "stress",
+            start,
+            end,
+            config.boundary_gap_tolerance_minutes,
         )
     )
     record.update(
@@ -1245,7 +1462,7 @@ def _coupling_features(
     end: pd.Timestamp,
     hr: pd.DataFrame,
     stress: pd.DataFrame,
-    config: MonitoringFeatureLibraryConfig,
+    config: MonitoringFeaturesFullConfig,
 ) -> dict[str, float | int]:
     hr_valid = _time_slice(hr, start, end).loc[lambda df: df["heart_rate_status"] == "valid"]
     stress_valid = _time_slice(stress, start, end).loc[lambda df: df["stress_status"] == "valid"]
@@ -1322,21 +1539,38 @@ def _normalize_windows(semantic_windows_df: pd.DataFrame) -> pd.DataFrame:
     windows = semantic_windows_df.copy()
     if windows.empty:
         return windows
-    for column in ["sleep_start_utc", "sleep_end_utc", "next_sleep_start_utc"]:
+    for column in [
+        "sleep_start_utc",
+        "sleep_end_utc",
+        "wake_start_utc",
+        "wake_end_utc",
+        "next_sleep_start_utc",
+    ]:
+        if column not in windows.columns:
+            windows[column] = pd.NaT
         windows[column] = pd.to_datetime(windows[column], errors="coerce", utc=True)
     windows["calendarDate"] = pd.to_datetime(windows["calendarDate"], errors="coerce").dt.normalize()
     for column in SEMANTIC_WINDOW_COLUMNS:
         if column not in windows.columns:
             windows[column] = pd.NA
-    required = [
-        "calendarDate",
-        "sleep_start_utc",
-        "sleep_end_utc",
-        "next_sleep_start_utc",
-        "sleep_duration_hours",
-        "wake_duration_hours",
-    ]
-    return windows.dropna(subset=required).sort_values("calendarDate").reset_index(drop=True)
+    windows["wake_start_utc"] = windows["wake_start_utc"].fillna(windows["sleep_end_utc"])
+    windows["wake_end_utc"] = windows["wake_end_utc"].fillna(windows["next_sleep_start_utc"])
+    if "sleep_duration_hours" not in windows or windows["sleep_duration_hours"].isna().all():
+        windows["sleep_duration_hours"] = (
+            windows["sleep_end_utc"] - windows["sleep_start_utc"]
+        ).dt.total_seconds() / 3600.0
+    else:
+        windows["sleep_duration_hours"] = pd.to_numeric(windows["sleep_duration_hours"], errors="coerce")
+    if "wake_duration_hours" not in windows or windows["wake_duration_hours"].isna().all():
+        windows["wake_duration_hours"] = (
+            windows["wake_end_utc"] - windows["wake_start_utc"]
+        ).dt.total_seconds() / 3600.0
+    else:
+        windows["wake_duration_hours"] = pd.to_numeric(windows["wake_duration_hours"], errors="coerce")
+    if "analysis_window_id" not in windows.columns:
+        windows["analysis_window_id"] = windows["calendarDate"].dt.strftime("%Y-%m-%d")
+    sort_columns = ["calendarDate", "analysis_window_id"]
+    return windows.dropna(subset=["calendarDate"]).sort_values(sort_columns).reset_index(drop=True)
 
 
 def _normalize_base_features(
@@ -1355,29 +1589,43 @@ def _normalize_base_features(
     return base.dropna(subset=["calendarDate"]).drop_duplicates("calendarDate", keep="last")
 
 
-def build_monitoring_feature_library(
+def _build_legacy_monitoring_features_full(
     heart_rate_df: pd.DataFrame,
     stress_df: pd.DataFrame,
-    semantic_windows_df: pd.DataFrame,
+    analysis_windows_df: pd.DataFrame,
     foundation_features_df: pd.DataFrame | None = None,
     *,
     max_hr_bpm: float = 192.0,
     gap_break_minutes: float = 2.0,
     min_valid_minutes: int = 5,
     min_paired_minutes: int = 10,
+    min_sleep_duration_hours: float = 2.0,
+    max_sleep_duration_hours: float = 16.0,
+    min_wake_duration_hours: float = 6.0,
+    max_wake_duration_hours: float = 30.0,
+    boundary_gap_tolerance_minutes: float = 60.0,
+    endpoint_band_minutes: float = 30.0,
+    endpoint_search_horizon_minutes: float = 90.0,
 ) -> pd.DataFrame:
-    """Build an interpretable daily monitoring feature library.
+    """Build a wide daily monitoring feature table.
 
-    The output preserves Packet 02 foundation columns when provided, then adds
-    Packet 03 feature families. Numeric stress features use only valid `0..100`
-    stress values; raw negative stress values are exposed only as status/proxy
-    features.
+    The preferred input is the quality-index analysis window table, so fused
+    missed-sleep spans are handled before features are computed. Numeric stress
+    features use only valid `0..100` stress values; raw negative stress values
+    are exposed only as status/proxy features.
     """
-    config = MonitoringFeatureLibraryConfig(
+    config = MonitoringFeaturesFullConfig(
         max_hr_bpm=float(max_hr_bpm),
         gap_break_minutes=float(gap_break_minutes),
         min_valid_minutes=int(min_valid_minutes),
         min_paired_minutes=int(min_paired_minutes),
+        min_sleep_duration_hours=float(min_sleep_duration_hours),
+        max_sleep_duration_hours=float(max_sleep_duration_hours),
+        min_wake_duration_hours=float(min_wake_duration_hours),
+        max_wake_duration_hours=float(max_wake_duration_hours),
+        boundary_gap_tolerance_minutes=float(boundary_gap_tolerance_minutes),
+        endpoint_band_minutes=float(endpoint_band_minutes),
+        endpoint_search_horizon_minutes=float(endpoint_search_horizon_minutes),
     )
     if config.max_hr_bpm <= 0:
         raise ValueError("max_hr_bpm must be positive")
@@ -1387,8 +1635,20 @@ def build_monitoring_feature_library(
         raise ValueError("min_valid_minutes must be at least 1")
     if config.min_paired_minutes < 2:
         raise ValueError("min_paired_minutes must be at least 2")
+    if config.min_sleep_duration_hours < 0 or config.max_sleep_duration_hours <= config.min_sleep_duration_hours:
+        raise ValueError("sleep duration plausibility bounds must satisfy 0 <= min < max")
+    if config.min_wake_duration_hours < 0 or config.max_wake_duration_hours <= config.min_wake_duration_hours:
+        raise ValueError("wake duration plausibility bounds must satisfy 0 <= min < max")
+    if config.boundary_gap_tolerance_minutes < 0:
+        raise ValueError("boundary_gap_tolerance_minutes must be non-negative")
+    if config.endpoint_band_minutes <= 0:
+        raise ValueError("endpoint_band_minutes must be positive")
+    if config.endpoint_search_horizon_minutes <= 0:
+        raise ValueError("endpoint_search_horizon_minutes must be positive")
+    if config.endpoint_search_horizon_minutes < config.endpoint_band_minutes:
+        raise ValueError("endpoint_search_horizon_minutes must be at least endpoint_band_minutes")
 
-    windows = _normalize_windows(semantic_windows_df)
+    windows = _normalize_windows(analysis_windows_df)
     if windows.empty:
         return pd.DataFrame()
 
@@ -1415,16 +1675,36 @@ def build_monitoring_feature_library(
                 base_row = base_row.iloc[-1]
             record: dict[str, Any] = base_row.to_dict()
         else:
-            record = {column: getattr(window, column) for column in SEMANTIC_WINDOW_COLUMNS}
+            record = {}
 
         sleep_start = pd.Timestamp(window.sleep_start_utc)
         sleep_end = pd.Timestamp(window.sleep_end_utc)
+        wake_start = pd.Timestamp(window.wake_start_utc)
+        wake_end = pd.Timestamp(window.wake_end_utc)
         next_sleep_start = pd.Timestamp(window.next_sleep_start_utc)
+        next_sleep_known = bool(
+            getattr(window, "next_sleep_start_known", pd.notna(next_sleep_start)) == 1
+            or pd.notna(next_sleep_start)
+        )
+        if pd.isna(next_sleep_start) and next_sleep_known and pd.notna(wake_end):
+            next_sleep_start = wake_end
 
-        for phase, start, end in [
-            ("sleep", sleep_start, sleep_end),
-            ("wake", sleep_end, next_sleep_start),
-        ]:
+        record.update(
+            {
+                "analysis_window_id": getattr(window, "analysis_window_id", str(calendar_date.date())),
+                "calendarDate": calendar_date,
+                "sleep_duration_hours": getattr(window, "sleep_duration_hours", np.nan),
+                "wake_duration_hours": getattr(window, "wake_duration_hours", np.nan),
+            }
+        )
+
+        phase_specs = []
+        if pd.notna(sleep_start) and pd.notna(sleep_end) and sleep_start < sleep_end:
+            phase_specs.append(("sleep", sleep_start, sleep_end))
+        if pd.notna(wake_start) and pd.notna(wake_end) and wake_start < wake_end:
+            phase_specs.append(("wake", wake_start, wake_end))
+
+        for phase, start, end in phase_specs:
             for key, value in _phase_advanced_features(phase, start, end, heart_rate, stress, config).items():
                 record[key] = value
             for key, value in _relative_window_features(
@@ -1439,44 +1719,52 @@ def build_monitoring_feature_library(
             for key, value in _coupling_features(phase, start, end, heart_rate, stress, config).items():
                 record[key] = value
 
-        record.update(
-            _anchored_window_features(
-                sleep_start,
-                sleep_end,
-                next_sleep_start,
-                heart_rate,
-                stress,
-                config.min_valid_minutes,
+        if pd.notna(sleep_start) and pd.notna(sleep_end) and sleep_start < sleep_end:
+            record.update(
+                _sleep_recovery_features(
+                    sleep_start,
+                    sleep_end,
+                    heart_rate,
+                    stress,
+                    config.min_valid_minutes,
+                )
             )
-        )
-        record.update(
-            _sleep_recovery_features(
-                sleep_start,
-                sleep_end,
-                heart_rate,
-                stress,
-                config.min_valid_minutes,
+        if (
+            next_sleep_known
+            and pd.notna(sleep_start)
+            and pd.notna(sleep_end)
+            and pd.notna(next_sleep_start)
+            and sleep_start < sleep_end < next_sleep_start
+        ):
+            record.update(
+                _anchored_window_features(
+                    sleep_start,
+                    sleep_end,
+                    next_sleep_start,
+                    heart_rate,
+                    stress,
+                    config.min_valid_minutes,
+                )
             )
-        )
-        record.update(
-            _pre_sleep_features(
-                sleep_end,
-                next_sleep_start,
-                heart_rate,
-                stress,
-                config.min_valid_minutes,
+            record.update(
+                _pre_sleep_features(
+                    sleep_end,
+                    next_sleep_start,
+                    heart_rate,
+                    stress,
+                    config.min_valid_minutes,
+                )
             )
-        )
-        record.update(
-            _all_trend_features(
-                sleep_start,
-                sleep_end,
-                next_sleep_start,
-                heart_rate,
-                stress,
-                config.min_valid_minutes,
+            record.update(
+                _all_trend_features(
+                    sleep_start,
+                    sleep_end,
+                    next_sleep_start,
+                    heart_rate,
+                    stress,
+                    config,
+                )
             )
-        )
         record.update(_contrast_features(record))
         records.append(record)
 
@@ -1560,14 +1848,16 @@ def _distribution_column(column: str) -> bool:
 
 
 def _infer_family(column: str) -> str:
-    if column in SEMANTIC_WINDOW_COLUMNS:
+    if column in SEMANTIC_WINDOW_COLUMNS or column in {"analysis_window_id", "source_calendarDate"}:
         return "identity/window metadata"
+    if column in SEMANTIC_WINDOW_QUALITY_COLUMNS:
+        return "semantic window quality"
+    if "stress_raw_" in column or "large_motion_proxy" in column:
+        return "raw stress status"
     if _starts_with_relative_window(column):
         return "relative windows"
     if _starts_with_anchored_window(column):
         return "anchored windows"
-    if "stress_raw_" in column or "large_motion_proxy" in column:
-        return "raw stress status"
     if (
         "paired_hr_stress" in column
         or "_hr_stress_corr" in column
@@ -1581,7 +1871,18 @@ def _infer_family(column: str) -> str:
         or column in {"hr_sleep_reduction_from_wake", "stress_sleep_reduction_from_wake"}
     ):
         return "sleep-wake contrast"
-    if column.endswith(("_slope_per_hour", "_trend_r2", "_end_minus_start")):
+    if column.endswith(
+        (
+            "_slope_per_hour",
+            "_trend_r2",
+            "_end_minus_start",
+            "_start_endpoint_valid_count",
+            "_end_endpoint_valid_count",
+            "_start_endpoint_offset_minutes",
+            "_end_endpoint_offset_minutes",
+            "_endpoint_contrast_defined",
+        )
+    ):
         return "trends"
     if (
         "first_60m" in column
@@ -1589,6 +1890,7 @@ def _infer_family(column: str) -> str:
         or "q1_minus_q4" in column
         or column.endswith(("_q1_mean", "_q4_mean"))
         or "drop_from_start_to_min_rolling_30m" in column
+        or "time_to_min" in column
         or "time_to_low_stress" in column
         or "time_to_stable_low_stress" in column
         or column.startswith("pre_sleep_")
@@ -1599,6 +1901,7 @@ def _infer_family(column: str) -> str:
         "episode" in column
         or "state_transition" in column
         or "transitions_per_valid_hour" in column
+        or column.endswith("_has_event")
         or "time_to_first" in column
         or "time_since_last" in column
         or "fragmentation_index" in column
@@ -1617,6 +1920,10 @@ def _infer_family(column: str) -> str:
         or "missing_gap_count" in column
         or "small_gap_count" in column
         or "large_gap_count" in column
+        or column.endswith("_minutes_to_first_valid")
+        or column.endswith("_minutes_from_last_valid_to_end")
+        or column.endswith("_start_boundary_covered")
+        or column.endswith("_end_boundary_covered")
     ):
         return "missingness/coverage"
     if "_hr_frac_" in column and any(zone in column for zone in (*HR_ZONE_COLUMNS, "zone1_plus", "zone2_plus", "zone3_plus")):
@@ -1733,6 +2040,13 @@ def _infer_unit(column: str, signal: str) -> str:
         return "date"
     if column.endswith("_utc") or column.endswith("_local"):
         return "timestamp"
+    if (
+        column in SEMANTIC_WINDOW_QUALITY_COLUMNS - {"semantic_day_duration_hours"}
+        or column.endswith("_has_event")
+        or column.endswith("_boundary_covered")
+        or column.endswith("_endpoint_contrast_defined")
+    ):
+        return "0/1 flag"
     if column.endswith("_hours"):
         return "hours"
     if column.endswith("_minutes") or "duration_minutes" in column or "time_to" in column or "time_since" in column:
@@ -1764,6 +2078,16 @@ def _description_for(column: str, family: str, signal: str, phase: str, window: 
         base += f" during {window.replace('_', ' ')}"
     if family == "identity/window metadata":
         return "Identifier, UTC/local semantic-window timestamp, duration, or local offset metadata."
+    if family == "semantic window quality":
+        if column == "semantic_day_duration_hours":
+            return "Total semantic-day duration from sleep start through the next sleep start."
+        if column.endswith("_plausible"):
+            return "Data-quality flag for whether semantic sleep/wake duration falls inside configured plausibility bounds."
+        if column.endswith("_outlier"):
+            return "Data-quality flag for semantic sleep/wake duration outside configured plausibility bounds."
+        if column.endswith("_gt_24h") or column.endswith("_gt_48h"):
+            return "Data-quality flag for very long wake windows, usually indicating a missing next sleep record rather than a normal wake phase."
+        return "Semantic-window quality/filtering feature for downstream EDA."
     if family == "foundation coverage":
         return "Packet 02 baseline count, coverage, or stress status diagnostic carried into the feature library."
     if family == "distribution/shape":
@@ -1773,28 +2097,66 @@ def _description_for(column: str, family: str, signal: str, phase: str, window: 
             return "Distribution entropy over fixed Garmin-like stress-state bins across valid stress values from 0 to 100."
         return base + "."
     if family == "stress state fractions":
-        return "Share of valid numeric stress minutes in a fixed Garmin-like stress state."
+        if column.endswith("_stress_frac_active"):
+            return "Share of eligible stress-state minutes with raw `-2` and same-minute valid HR, treated as an active/large-motion proxy rather than numeric stress."
+        return "Share of eligible raw stress minutes in a fixed Garmin-like numeric stress state; raw `-1` and raw `-2` without same-minute valid HR are excluded from the denominator."
     if family == "HR MHR zones":
         return "Share of valid HR minutes in a fixed maximum-heart-rate zone derived from the configured max HR."
     if family == "variability/gaps":
         return "Gap-aware minute-to-minute variability diagnostic; gaps beyond the configured threshold break segments."
     if family == "missingness/coverage":
+        if column.endswith("_minutes_to_first_valid"):
+            return "Minutes from the phase/window start to the first valid observation for the signal."
+        if column.endswith("_minutes_from_last_valid_to_end"):
+            return "Minutes from the last valid signal observation to the phase/window end."
+        if column.endswith("_start_boundary_covered"):
+            return "Flag for whether the first valid signal observation is within the configured boundary tolerance after phase/window start."
+        if column.endswith("_end_boundary_covered"):
+            return "Flag for whether the last valid signal observation is within the configured boundary tolerance before phase/window end."
         return "Missingness or paired coverage diagnostic for the semantic phase/window."
     if family == "episodes/state structure":
+        if column.endswith("_has_event"):
+            return "Flag for whether at least one matching state episode occurred; no-event cases keep duration summaries at zero."
+        if column.endswith("_time_since_last_minutes"):
+            return "Time from the end of the last matching event to the end of the phase/window; undefined when no event occurred."
+        if column.endswith("_time_to_first_minutes"):
+            return "Time from the phase/window start to the first matching event; undefined when no event occurred."
+        if column.endswith("_fragmentation_index"):
+            return "Episode count divided by total event minutes; high values imply many short bursts, and no-event cases are zero."
         return "Contiguous state-run feature; gaps beyond the configured threshold break episodes."
     if family == "recovery/deactivation":
         return "Sleep recovery or pre-sleep deactivation summary; positive deactivation means lower values closer to sleep."
     if family == "relative windows":
+        if column.endswith("_duration_minutes"):
+            return "Duration of the relative quarter-window, useful for interpreting coverage and long semantic windows."
+        if "stress_raw_" in column or "large_motion_proxy" in column:
+            return "Raw stress status fraction for the relative window; negative raw values are not treated as numeric stress."
         return "Compact summary for a relative quarter of the sleep or wake phase."
     if family == "anchored windows":
+        if column.endswith("_duration_minutes"):
+            return "Duration of the anchored window after wake or before sleep, useful for interpreting coverage."
+        if "stress_raw_" in column or "large_motion_proxy" in column:
+            return "Raw stress status fraction for the anchored window; raw `-2` requires same-minute valid HR before it is interpreted as active proxy."
         return "Compact summary for a fixed window anchored to wake or sleep boundaries."
     if family == "trends":
-        return "Simple linear trend or smoothed endpoint contrast in interpretable per-hour units."
+        if column.endswith("_endpoint_contrast_defined"):
+            return "Flag for whether both robust endpoint bands had enough valid observations to define end-minus-start."
+        if column.endswith("_endpoint_valid_count"):
+            return "Valid observation count in the robust endpoint band chosen near the phase/window boundary."
+        if column.endswith("_endpoint_offset_minutes"):
+            return "Offset between the phase/window boundary and the robust endpoint band used for end-minus-start."
+        if column.endswith("_end_minus_start"):
+            return "Robust endpoint-band contrast: latest usable endpoint-band mean minus earliest usable endpoint-band mean."
+        return "Simple linear trend or robust endpoint-band contrast in interpretable per-hour units."
     if family == "sleep-wake contrast":
         return "Difference between wake and sleep monitoring summaries."
     if family == "HR/stress coupling":
         return "Same-minute paired HR/stress feature using only valid HR and valid numeric stress rows."
     if family == "raw stress status":
+        if "minus_2" in column or "large_motion_proxy" in column:
+            return "Raw stress `-2` status diagnostic; only same-minute valid HR confirms active proxy, and it is not treated as numeric stress."
+        if "minus_1" in column:
+            return "Raw stress `-1` status fraction/count; not treated as numeric stress."
         return "Raw stress status/proxy feature; negative raw values are not treated as numeric stress."
     return "Monitoring feature column not matched to a more specific catalog family."
 
@@ -1802,6 +2164,8 @@ def _description_for(column: str, family: str, signal: str, phase: str, window: 
 def _analysis_role(family: str) -> str:
     if family == "identity/window metadata":
         return "identifier"
+    if family == "semantic window quality":
+        return "quality_filter"
     if family in {"foundation coverage", "missingness/coverage", "raw stress status"}:
         return "diagnostic"
     return "feature"
@@ -1865,6 +2229,8 @@ def _caution_text(
         notes.append("mostly missing; inspect before EDA/modeling")
     if is_sparse_or_rare and not is_mostly_missing:
         notes.append("sparse or rare-event style feature")
+    if family == "semantic window quality":
+        notes.append("data-quality filter; use before interpreting window-heavy features")
     if family == "raw stress status":
         notes.append("raw status/proxy only; not numeric stress")
     if family == "HR/stress coupling":
@@ -1880,7 +2246,7 @@ def _candidate_model_feature(
     is_mostly_missing: bool,
     dtype: str,
 ) -> bool:
-    if role == "identifier" or is_all_null or is_constant_non_null or is_mostly_missing:
+    if role in {"identifier", "quality_filter"} or is_all_null or is_constant_non_null or is_mostly_missing:
         return False
     return not dtype.startswith("datetime")
 
@@ -1983,7 +2349,7 @@ def _markdown_table(df: pd.DataFrame, columns: list[str], *, max_rows: int = 20)
 def build_monitoring_feature_catalog_markdown(
     catalog_df: pd.DataFrame,
     *,
-    csv_path: str = "reports/monitoring_feature_catalog.csv",
+    csv_path: str = "reports/monitoring_features_full_catalog.csv",
 ) -> str:
     """Build a compact human-readable catalog report for the wide feature table."""
     family_counts = catalog_df["family"].value_counts().reindex(FEATURE_FAMILY_ORDER).dropna()
@@ -2006,31 +2372,32 @@ def build_monitoring_feature_catalog_markdown(
     )
     family_explanations = {
         "identity/window metadata": "Semantic-day identifiers, UTC/local sleep and wake boundaries, durations, and local offset metadata.",
-        "foundation coverage": "Packet 02 baseline counts, coverage fractions, and status diagnostics carried forward for filtering and audit.",
+        "semantic window quality": "Plausibility and outlier flags for semantic sleep/wake windows; filter very long wake windows before interpreting window-heavy features.",
+        "foundation coverage": "Phase-level counts, coverage fractions, and status diagnostics retained for filtering and audit.",
         "distribution/shape": "Robust and standard summaries of valid HR or numeric stress values; entropy uses fixed bins.",
-        "stress state fractions": "Shares of valid stress minutes in fixed Garmin-like 0..100 stress states.",
+        "stress state fractions": "Shares of eligible raw stress minutes in fixed Garmin-like states, including active proxy from raw `-2` only when same-minute valid HR confirms activity.",
         "HR MHR zones": "Shares of valid HR minutes in fixed zones derived from the configured maximum heart rate.",
         "variability/gaps": "Gap-aware first-difference roughness and jump diagnostics without interpolation.",
-        "missingness/coverage": "Missing-gap and paired-coverage diagnostics for data quality filtering.",
-        "episodes/state structure": "Contiguous runs of stress or HR states with gap breaks.",
+        "missingness/coverage": "Missing-gap, boundary-coverage, and paired-coverage diagnostics for data quality filtering.",
+        "episodes/state structure": "Contiguous runs of stress or HR states with gap breaks; no-event cases have `has_event = 0` and zero duration summaries.",
         "recovery/deactivation": "Sleep decline and pre-sleep deactivation summaries.",
         "relative windows": "Compact summaries for sleep/wake quarters.",
         "anchored windows": "Compact summaries for fixed windows around wake and sleep boundaries.",
-        "trends": "Simple linear slopes, trend fit quality, and smoothed endpoint contrasts.",
+        "trends": "Simple linear slopes and trend fit quality computed over available valid points.",
         "sleep-wake contrast": "Direct wake-minus-sleep physiology and state-fraction differences.",
         "HR/stress coupling": "Same-minute paired HR and valid numeric stress relationships.",
-        "raw stress status": "Raw stress status/proxy diagnostics; negative raw values are not stress scores.",
+        "raw stress status": "Raw stress status/proxy diagnostics, including compact window fractions; negative raw values are not stress scores.",
     }
 
     lines = [
         "# Monitoring Feature Catalog",
         "",
-        "This catalog summarizes the columns in `data/processed/monitoring_feature_library.parquet`. The full row-level feature dictionary is in the CSV output.",
+        "This catalog summarizes the columns in `data/processed/monitoring_features_full_v0.parquet`. The full row-level feature dictionary is in the CSV output.",
         "",
         "## Outputs",
         "",
         f"- Full CSV catalog: `{csv_path}`",
-        "- Markdown summary: `reports/monitoring_feature_catalog.md`",
+        "- Markdown summary: `reports/monitoring_features_full_catalog.md`",
         "",
         "## Feature Family Counts",
         "",
@@ -2109,7 +2476,10 @@ def build_monitoring_feature_catalog_markdown(
             "## Notes",
             "",
             "- Numeric stress features use only valid `0..100` stress values.",
-            "- Raw stress `-1` and `-2` values remain status/proxy diagnostics.",
+            "- Raw stress `-1` is excluded from feature-state denominators and remains a quality diagnostic.",
+            "- Raw stress `-2` appears in feature-state fractions only through `stress_frac_active` when same-minute valid HR confirms activity.",
+            "- Raw stress `-2` without same-minute valid HR remains an unmeasurable/status diagnostic, not activity.",
+            "- Episode no-event cases are represented with `has_event = 0`, zero duration summaries, and undefined time-to-event fields.",
             "- Candidate model feature flags are first-pass guidance only; Modeling v2 should still apply leakage-safe feature selection.",
             "",
         ]
@@ -2142,18 +2512,25 @@ def _infinite_numeric_value_count(feature_df: pd.DataFrame) -> int:
     return total
 
 
-def build_monitoring_feature_library_summary_markdown(
+def _build_legacy_monitoring_features_full_summary_markdown(
     feature_df: pd.DataFrame,
     *,
     max_hr_bpm: float,
     gap_break_minutes: float,
     min_valid_minutes: int,
     min_paired_minutes: int,
+    min_sleep_duration_hours: float = 2.0,
+    max_sleep_duration_hours: float = 16.0,
+    min_wake_duration_hours: float = 6.0,
+    max_wake_duration_hours: float = 30.0,
+    boundary_gap_tolerance_minutes: float = 60.0,
+    endpoint_band_minutes: float = 30.0,
+    endpoint_search_horizon_minutes: float = 90.0,
     catalog_df: pd.DataFrame | None = None,
-    catalog_csv_path: str = "reports/monitoring_feature_catalog.csv",
-    catalog_md_path: str = "reports/monitoring_feature_catalog.md",
+    catalog_csv_path: str = "reports/monitoring_features_full_catalog.csv",
+    catalog_md_path: str = "reports/monitoring_features_full_catalog.md",
 ) -> str:
-    """Build a privacy-safe aggregate summary for the Packet 03 feature table."""
+    """Build a privacy-safe aggregate summary for the wide Packet 03 feature table."""
     if catalog_df is None:
         catalog_df = build_monitoring_feature_catalog(feature_df) if not feature_df.empty else pd.DataFrame(columns=CATALOG_COLUMNS)
 
@@ -2174,7 +2551,34 @@ def build_monitoring_feature_library_summary_markdown(
         else 0
     )
     infinite_numeric_count = _infinite_numeric_value_count(feature_df)
+
+    def flag_count(column: str) -> int:
+        if column not in feature_df.columns:
+            return 0
+        return int((pd.to_numeric(feature_df[column], errors="coerce") == 1).sum())
+
+    wake_gt_24_count = (
+        flag_count("wake_duration_gt_24h")
+        if "wake_duration_gt_24h" in feature_df.columns
+        else int((pd.to_numeric(feature_df.get("wake_duration_hours", pd.Series(dtype=float)), errors="coerce") > 24).sum())
+    )
+    wake_gt_30_count = (
+        flag_count("wake_duration_gt_30h")
+        if "wake_duration_gt_30h" in feature_df.columns
+        else int((pd.to_numeric(feature_df.get("wake_duration_hours", pd.Series(dtype=float)), errors="coerce") > 30).sum())
+    )
+    wake_gt_48_count = (
+        flag_count("wake_duration_gt_48h")
+        if "wake_duration_gt_48h" in feature_df.columns
+        else int((pd.to_numeric(feature_df.get("wake_duration_hours", pd.Series(dtype=float)), errors="coerce") > 48).sum())
+    )
     family_examples = {
+        "Semantic window quality": [
+            "sleep_duration_plausible",
+            "wake_duration_plausible",
+            "semantic_window_plausible",
+            "wake_duration_gt_24h",
+        ],
         "Distribution and shape": [
             "sleep_hr_p05",
             "wake_stress_iqr",
@@ -2208,8 +2612,9 @@ def build_monitoring_feature_library_summary_markdown(
         "Trends and contrasts": [
             "wake_stress_slope_per_hour",
             "sleep_hr_end_minus_start",
+            "wake_hr_endpoint_contrast_defined",
+            "wake_stress_start_endpoint_offset_minutes",
             "hr_wake_mean_minus_sleep_mean",
-            "stress_wake_high_fraction_minus_sleep",
         ],
         "HR/stress coupling": [
             "wake_paired_hr_stress_valid_minutes",
@@ -2257,13 +2662,13 @@ def build_monitoring_feature_library_summary_markdown(
     ]
 
     lines = [
-        "# Monitoring Feature Library Summary",
+        "# Monitoring Full Features Summary",
         "",
-        "This report summarizes the local Packet 03 monitoring feature library built from Packet 02 canonical HR/stress rows and semantic sleep/wake windows. It contains aggregate diagnostics only.",
+        "This report summarizes the local Packet 03 wide monitoring feature table built after semantic-window quality normalization. It contains aggregate diagnostics only.",
         "",
         "## Outputs",
         "",
-        "- `data/processed/monitoring_feature_library.parquet`",
+        "- `data/processed/monitoring_features_full_v0.parquet`",
         f"- `{catalog_csv_path}`",
         f"- `{catalog_md_path}`",
         "",
@@ -2273,6 +2678,10 @@ def build_monitoring_feature_library_summary_markdown(
         f"- Gap break threshold: `{gap_break_minutes:g}` minutes",
         f"- Minimum valid minutes for window/trend summaries: `{min_valid_minutes}`",
         f"- Minimum paired HR/stress minutes for correlation/regression: `{min_paired_minutes}`",
+        f"- Sleep duration plausibility bounds: `{min_sleep_duration_hours:g}` to `{max_sleep_duration_hours:g}` hours",
+        f"- Wake duration plausibility bounds: `{min_wake_duration_hours:g}` to `{max_wake_duration_hours:g}` hours",
+        f"- Boundary coverage tolerance: `{boundary_gap_tolerance_minutes:g}` minutes",
+        f"- Endpoint contrast band/search horizon: `{endpoint_band_minutes:g}` / `{endpoint_search_horizon_minutes:g}` minutes",
         "",
         "## Table Shape",
         "",
@@ -2294,6 +2703,20 @@ def build_monitoring_feature_library_summary_markdown(
         "",
         "Constant columns are diagnostics and will be filtered or selected intentionally in later EDA/modeling steps.",
         "",
+        "## Quality Join Policy",
+        "",
+        "- Row-level filtering and semantic-window quality live in `data/processed/monitoring_quality_index.parquet`.",
+        "- Join this table to the quality index on `analysis_window_id` before modeling or final EDA filtering.",
+        "- This full feature table does not duplicate `semantic_window_plausible` or coverage eligibility flags as model-candidate columns.",
+        f"- Feature rows with wake duration `> 24h`: `{wake_gt_24_count:,}`",
+        f"- Feature rows with wake duration `> 30h`: `{wake_gt_30_count:,}`",
+        f"- Feature rows with wake duration `> 48h`: `{wake_gt_48_count:,}`",
+        "- No-event episode cases are represented separately from missingness: `has_event = 0`, zero duration summaries, and undefined timing-to-event fields.",
+        "- Raw stress `-2` is an active proxy only with same-minute valid HR; otherwise it remains unmeasurable/status, not numeric stress or high stress.",
+        "- Very long wake windows are flagged as plausibility failures; they usually indicate a missing next sleep record, so wake-relative windows and trends should not be read as normal day structure.",
+        "- Endpoint contrasts are robust endpoint-band contrasts that search near the boundary for usable data, not single boundary-point differences.",
+        "- Downstream feature selection should filter by the semantic-window and boundary-quality flags before interpreting window-heavy features.",
+        "",
         "## Entropy Policy",
         "",
         "- Stress histogram entropy uses fixed Garmin-like stress-state bins over valid `0..100` values: `0..25`, `26..50`, `51..75`, and `76..100`.",
@@ -2304,6 +2727,8 @@ def build_monitoring_feature_library_summary_markdown(
         "",
     ]
     for family, examples in present_examples.items():
+        if not examples:
+            continue
         rendered = ", ".join(f"`{column}`" for column in examples) if examples else "no example columns present"
         lines.append(f"- {family}: {rendered}")
 
@@ -2329,7 +2754,7 @@ def build_monitoring_feature_library_summary_markdown(
             "## Scope Notes",
             "",
             "- Numeric stress features use only valid `0..100` stress values.",
-            "- Raw stress `-1` and `-2` values are represented only as status/proxy features.",
+            "- Raw stress `-1` and raw `-2` without same-minute valid HR are represented only as status/quality diagnostics.",
             "- The `-2` large-motion proxy is not treated as activity ground truth or high stress.",
             "- This packet does not add composite scores, bands, spectral features, SQL mart changes, or supervised modeling lag features.",
             "",

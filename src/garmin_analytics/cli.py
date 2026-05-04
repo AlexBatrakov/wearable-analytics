@@ -10,14 +10,21 @@ from rich.console import Console
 from .ingest.sleep import parse_sleep_files
 from .ingest.uds import parse_uds_files
 from .monitoring import (
+    build_monitoring_analysis_windows,
+    build_monitoring_core_features,
+    build_monitoring_core_features_summary_markdown,
     build_monitoring_feature_catalog,
     build_monitoring_feature_catalog_markdown,
-    build_monitoring_feature_library,
-    build_monitoring_feature_library_summary_markdown,
+    build_monitoring_features_full,
+    build_monitoring_features_full_summary_markdown,
     build_monitoring_daily_features,
     build_monitoring_foundation_summary_markdown,
+    build_monitoring_quality_index,
+    build_monitoring_quality_summary_markdown,
+    build_monitoring_quality_windows,
     build_semantic_sleep_windows,
     materialize_monitoring_fit,
+    select_monitoring_core_features,
 )
 from .quality.quality import (
     QualityConfig,
@@ -331,8 +338,8 @@ def build_monitoring_features_command(
     _info(f"Wrote {resolved_report}")
 
 
-@app.command("build-monitoring-feature-library")
-def build_monitoring_feature_library_command(
+@app.command("build-monitoring-datasets")
+def build_monitoring_datasets_command(
     heart_rate_path: Path = typer.Option(
         None,
         "--heart-rate-path",
@@ -348,134 +355,144 @@ def build_monitoring_feature_library_command(
         "--windows-path",
         help="Semantic windows parquet (default: data/processed/semantic_sleep_windows.parquet)",
     ),
-    foundation_features_path: Path = typer.Option(
+    quality_index_output: Path = typer.Option(
         None,
-        "--foundation-features-path",
-        help="Packet 02 foundation features parquet (default: data/processed/monitoring_daily_features.parquet)",
+        "--quality-index-output",
+        help="Quality index parquet (default: data/processed/monitoring_quality_index.parquet)",
     ),
-    output: Path = typer.Option(
+    core_output: Path = typer.Option(
         None,
-        "--output",
-        help="Monitoring feature library parquet (default: data/processed/monitoring_feature_library.parquet)",
+        "--core-output",
+        help="Core features parquet (default: data/processed/monitoring_features_core_v0.parquet)",
     ),
-    report: Path = typer.Option(
+    full_output: Path = typer.Option(
         None,
-        "--report",
-        help="Aggregate markdown summary (default: reports/monitoring_feature_library_summary.md)",
+        "--full-output",
+        help="Full features parquet (default: data/processed/monitoring_features_full_v0.parquet)",
     ),
-    catalog_csv: Path = typer.Option(
+    quality_report: Path = typer.Option(
         None,
-        "--catalog-csv",
-        help="Monitoring feature catalog CSV (default: reports/monitoring_feature_catalog.csv)",
+        "--quality-report",
+        help="Quality markdown report (default: reports/monitoring_quality_summary.md)",
     ),
-    catalog_md: Path = typer.Option(
+    core_report: Path = typer.Option(
         None,
-        "--catalog-md",
-        help="Monitoring feature catalog markdown summary (default: reports/monitoring_feature_catalog.md)",
+        "--core-report",
+        help="Core features markdown report (default: reports/monitoring_core_features_summary.md)",
     ),
-    write_catalog: bool = typer.Option(
-        True,
-        "--catalog/--no-catalog",
-        help="Write feature catalog CSV and markdown outputs.",
+    full_report: Path = typer.Option(
+        None,
+        "--full-report",
+        help="Full features markdown report (default: reports/monitoring_features_full_summary.md)",
     ),
-    max_hr_bpm: float = typer.Option(
-        192.0,
-        "--max-hr-bpm",
-        help="Maximum heart-rate parameter for HR zone fractions.",
+    full_catalog_csv: Path = typer.Option(
+        None,
+        "--full-catalog-csv",
+        help="Full feature catalog CSV (default: reports/monitoring_features_full_catalog.csv)",
     ),
-    gap_break_minutes: float = typer.Option(
-        2.0,
-        "--gap-break-minutes",
-        help="Timestamp gap, in minutes, that breaks differences and episodes.",
-    ),
-    min_valid_minutes: int = typer.Option(
-        5,
-        "--min-valid-minutes",
-        help="Minimum valid observations for window and trend summaries.",
-    ),
-    min_paired_minutes: int = typer.Option(
-        10,
-        "--min-paired-minutes",
-        help="Minimum paired HR/stress observations for correlations and regressions.",
+    full_catalog_md: Path = typer.Option(
+        None,
+        "--full-catalog-md",
+        help="Full feature catalog markdown (default: reports/monitoring_features_full_catalog.md)",
     ),
 ) -> None:
-    """Build the Packet 03 interpretable monitoring feature library."""
+    """Build the quality index plus compact and cleaned full monitoring feature tables."""
     repo_root = get_repo_root()
     processed_dir = get_processed_dir()
     resolved_hr_path = heart_rate_path or (processed_dir / "monitoring_heart_rate.parquet")
     resolved_stress_path = stress_path or (processed_dir / "monitoring_stress.parquet")
     resolved_windows_path = windows_path or (processed_dir / "semantic_sleep_windows.parquet")
-    resolved_foundation_path = foundation_features_path or (
-        processed_dir / "monitoring_daily_features.parquet"
-    )
-    resolved_output = output or (processed_dir / "monitoring_feature_library.parquet")
-    resolved_report = report or (repo_root / "reports" / "monitoring_feature_library_summary.md")
-    resolved_catalog_csv = catalog_csv or (repo_root / "reports" / "monitoring_feature_catalog.csv")
-    resolved_catalog_md = catalog_md or (repo_root / "reports" / "monitoring_feature_catalog.md")
+    resolved_quality_index = quality_index_output or (processed_dir / "monitoring_quality_index.parquet")
+    resolved_core_output = core_output or (processed_dir / "monitoring_features_core_v0.parquet")
+    resolved_full_output = full_output or (processed_dir / "monitoring_features_full_v0.parquet")
+    resolved_quality_report = quality_report or (repo_root / "reports" / "monitoring_quality_summary.md")
+    resolved_core_report = core_report or (repo_root / "reports" / "monitoring_core_features_summary.md")
+    resolved_full_report = full_report or (repo_root / "reports" / "monitoring_features_full_summary.md")
+    resolved_full_catalog_csv = full_catalog_csv or (repo_root / "reports" / "monitoring_features_full_catalog.csv")
+    resolved_full_catalog_md = full_catalog_md or (repo_root / "reports" / "monitoring_features_full_catalog.md")
 
-    for path in [
-        resolved_hr_path,
-        resolved_stress_path,
-        resolved_windows_path,
-        resolved_foundation_path,
-    ]:
+    for path in [resolved_hr_path, resolved_stress_path, resolved_windows_path]:
         if not path.exists():
             _info(f"Missing input: {path}")
             raise typer.Exit(code=1)
 
-    try:
-        feature_df = build_monitoring_feature_library(
-            heart_rate_df=pd.read_parquet(resolved_hr_path),
-            stress_df=pd.read_parquet(resolved_stress_path),
-            semantic_windows_df=pd.read_parquet(resolved_windows_path),
-            foundation_features_df=pd.read_parquet(resolved_foundation_path),
-            max_hr_bpm=max_hr_bpm,
-            gap_break_minutes=gap_break_minutes,
-            min_valid_minutes=min_valid_minutes,
-            min_paired_minutes=min_paired_minutes,
-        )
-    except ValueError as err:
-        _info(str(err))
-        raise typer.Exit(code=1) from err
+    heart_rate_df = pd.read_parquet(resolved_hr_path)
+    stress_df = pd.read_parquet(resolved_stress_path)
+    windows_df = pd.read_parquet(resolved_windows_path)
 
-    ensure_dir(resolved_output.parent)
-    feature_df.to_parquet(resolved_output, index=False, engine="pyarrow")
+    analysis_windows_df = build_monitoring_analysis_windows(
+        windows_df,
+        heart_rate_df=heart_rate_df,
+        stress_df=stress_df,
+    )
+    quality_windows_df = build_monitoring_quality_windows(
+        heart_rate_df,
+        stress_df,
+        analysis_windows_df,
+    )
+    quality_index_df = build_monitoring_quality_index(
+        analysis_windows_df,
+        quality_windows_df,
+    )
+    full_df = build_monitoring_features_full(
+        heart_rate_df,
+        stress_df,
+        quality_index_df,
+    )
+    core_df = select_monitoring_core_features(full_df)
+    full_catalog_df = build_monitoring_feature_catalog(full_df)
 
-    catalog_df = None
-    if write_catalog:
-        catalog_df = build_monitoring_feature_catalog(feature_df)
-        ensure_dir(resolved_catalog_csv.parent)
-        catalog_df.to_csv(resolved_catalog_csv, index=False)
-        ensure_dir(resolved_catalog_md.parent)
-        resolved_catalog_md.write_text(
-            build_monitoring_feature_catalog_markdown(
-                catalog_df,
-                csv_path=_safe_relpath(resolved_catalog_csv, repo_root),
-            ),
-            encoding="utf-8",
-        )
+    for output_path, frame in [
+        (resolved_quality_index, quality_index_df),
+        (resolved_core_output, core_df),
+        (resolved_full_output, full_df),
+    ]:
+        ensure_dir(output_path.parent)
+        frame.to_parquet(output_path, index=False, engine="pyarrow")
 
-    ensure_dir(resolved_report.parent)
-    resolved_report.write_text(
-        build_monitoring_feature_library_summary_markdown(
-            feature_df,
-            max_hr_bpm=max_hr_bpm,
-            gap_break_minutes=gap_break_minutes,
-            min_valid_minutes=min_valid_minutes,
-            min_paired_minutes=min_paired_minutes,
-            catalog_df=catalog_df,
-            catalog_csv_path=_safe_relpath(resolved_catalog_csv, repo_root),
-            catalog_md_path=_safe_relpath(resolved_catalog_md, repo_root),
+    ensure_dir(resolved_quality_report.parent)
+    resolved_quality_report.write_text(
+        build_monitoring_quality_summary_markdown(quality_index_df, quality_windows_df),
+        encoding="utf-8",
+    )
+    ensure_dir(resolved_core_report.parent)
+    resolved_core_report.write_text(
+        build_monitoring_core_features_summary_markdown(core_df, quality_index_df),
+        encoding="utf-8",
+    )
+    ensure_dir(resolved_full_catalog_csv.parent)
+    full_catalog_df.to_csv(resolved_full_catalog_csv, index=False)
+    ensure_dir(resolved_full_catalog_md.parent)
+    resolved_full_catalog_md.write_text(
+        build_monitoring_feature_catalog_markdown(
+            full_catalog_df,
+            csv_path=_safe_relpath(resolved_full_catalog_csv, repo_root),
+        ),
+        encoding="utf-8",
+    )
+    ensure_dir(resolved_full_report.parent)
+    resolved_full_report.write_text(
+        build_monitoring_features_full_summary_markdown(
+            full_df,
+            max_hr_bpm=192.0,
+            gap_break_minutes=2.0,
+            min_valid_minutes=5,
+            min_paired_minutes=10,
+            catalog_df=full_catalog_df,
+            catalog_csv_path=_safe_relpath(resolved_full_catalog_csv, repo_root),
+            catalog_md_path=_safe_relpath(resolved_full_catalog_md, repo_root),
         ),
         encoding="utf-8",
     )
 
-    _info(f"Wrote {len(feature_df)} rows and {feature_df.shape[1]} columns to {resolved_output}")
-    if write_catalog:
-        _info(f"Wrote {resolved_catalog_csv}")
-        _info(f"Wrote {resolved_catalog_md}")
-    _info(f"Wrote {resolved_report}")
-
+    _info(f"Wrote {len(quality_index_df)} quality rows to {resolved_quality_index}")
+    _info(f"Wrote {len(core_df)} core rows and {core_df.shape[1]} columns to {resolved_core_output}")
+    _info(f"Wrote {len(full_df)} full rows and {full_df.shape[1]} columns to {resolved_full_output}")
+    _info(f"Wrote {resolved_quality_report}")
+    _info(f"Wrote {resolved_core_report}")
+    _info(f"Wrote {resolved_full_report}")
+    _info(f"Wrote {resolved_full_catalog_csv}")
+    _info(f"Wrote {resolved_full_catalog_md}")
 
 @app.command("build-daily")
 def build_daily() -> None:

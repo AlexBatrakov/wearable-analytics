@@ -5,192 +5,565 @@ import pandas as pd
 import pytest
 
 from garmin_analytics.monitoring import (
-    build_monitoring_daily_features,
+    MonitoringCoreConfig,
+    build_monitoring_analysis_windows,
     build_monitoring_feature_catalog,
-    build_monitoring_feature_library,
+    build_monitoring_features_full,
+    build_monitoring_quality_index,
+    build_monitoring_quality_windows,
+    select_monitoring_core_features,
 )
+
+
+FORBIDDEN_FEATURE_TOKENS = [
+    "p05",
+    "p95",
+    "trimmed_mean",
+    "medium_or_high",
+    "first_30m_after_wake",
+    "first_2h_after_wake",
+    "last_2h_before_sleep",
+    "last_4h_before_sleep",
+    "endpoint",
+    "end_minus_start",
+    "coverage_fraction",
+    "valid_count",
+    "total_count",
+    "max_gap_minutes",
+    "minutes_to_first_valid",
+    "minutes_from_last_valid_to_end",
+    "raw_minus_1",
+    "raw_minus_2",
+    "large_motion_proxy",
+    "activation_" + "score",
+    "activation_" + "band",
+    "wake_" + "activation",
+    "dominant_" + "frequency",
+    "dominant_" + "period",
+]
 
 
 def _utc(value: str) -> pd.Timestamp:
     return pd.Timestamp(value, tz="UTC")
 
 
-def _fixture_inputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    windows = pd.DataFrame(
+def _window_frame(
+    *,
+    calendar_date: str = "2024-03-01",
+    sleep_start: str = "2024-03-01 22:00",
+    sleep_end: str = "2024-03-02 06:00",
+    next_observed_sleep_start: str | None = "2024-03-02 22:00",
+    next_sleep_status: str = "observed_within_cutoff",
+    offset_minutes: int = 0,
+) -> pd.DataFrame:
+    sleep_start_utc = _utc(sleep_start)
+    sleep_end_utc = _utc(sleep_end)
+    observed_next_utc = _utc(next_observed_sleep_start) if next_observed_sleep_start is not None else pd.NaT
+    accepted_next_utc = observed_next_utc if next_sleep_status == "observed_within_cutoff" else pd.NaT
+    observed_wake_duration = (
+        (observed_next_utc - sleep_end_utc).total_seconds() / 3600.0
+        if pd.notna(observed_next_utc)
+        else np.nan
+    )
+    wake_duration = (
+        (accepted_next_utc - sleep_end_utc).total_seconds() / 3600.0
+        if pd.notna(accepted_next_utc)
+        else np.nan
+    )
+    return pd.DataFrame(
         {
-            "calendarDate": ["2024-02-01"],
-            "local_utc_offset_minutes": [0],
+            "calendarDate": [calendar_date],
+            "local_utc_offset_minutes": [offset_minutes],
             "local_utc_offset_source": ["fixture"],
-            "sleep_start_utc": [_utc("2024-02-01 00:00")],
-            "sleep_end_utc": [_utc("2024-02-01 00:08")],
-            "next_sleep_start_utc": [_utc("2024-02-01 00:16")],
-            "sleep_start_local": [pd.Timestamp("2024-02-01 00:00")],
-            "sleep_end_local": [pd.Timestamp("2024-02-01 00:08")],
-            "next_sleep_start_local": [pd.Timestamp("2024-02-01 00:16")],
-            "sleep_duration_hours": [8 / 60],
-            "wake_duration_hours": [8 / 60],
+            "sleep_start_utc": [sleep_start_utc],
+            "sleep_end_utc": [sleep_end_utc],
+            "next_observed_sleep_start_utc": [observed_next_utc],
+            "next_sleep_start_utc": [accepted_next_utc],
+            "sleep_start_local": [pd.Timestamp(sleep_start) + pd.Timedelta(minutes=offset_minutes)],
+            "sleep_end_local": [pd.Timestamp(sleep_end) + pd.Timedelta(minutes=offset_minutes)],
+            "next_observed_sleep_start_local": [
+                pd.Timestamp(next_observed_sleep_start) + pd.Timedelta(minutes=offset_minutes)
+                if next_observed_sleep_start is not None
+                else pd.NaT
+            ],
+            "next_sleep_start_local": [
+                pd.Timestamp(next_observed_sleep_start) + pd.Timedelta(minutes=offset_minutes)
+                if next_sleep_status == "observed_within_cutoff" and next_observed_sleep_start is not None
+                else pd.NaT
+            ],
+            "next_sleep_status": [next_sleep_status],
+            "sleep_duration_hours": [(sleep_end_utc - sleep_start_utc).total_seconds() / 3600.0],
+            "observed_wake_duration_hours": [observed_wake_duration],
+            "wake_duration_hours": [wake_duration],
         }
     )
+
+
+def _minute_monitoring_rows(
+    start: str,
+    periods: int,
+    *,
+    heart_rates: list[int] | None = None,
+    stress_values: list[int] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    timestamps = pd.date_range(_utc(start), periods=periods, freq="min")
+    if heart_rates is None:
+        heart_rates = [60 + (idx % 40) for idx in range(periods)]
+    if stress_values is None:
+        stress_values = [20 + (idx % 70) for idx in range(periods)]
     heart_rate = pd.DataFrame(
         {
-            "timestamp_utc": [
-                _utc("2024-02-01 00:00"),
-                _utc("2024-02-01 00:01"),
-                _utc("2024-02-01 00:02"),
-                _utc("2024-02-01 00:04"),
-                _utc("2024-02-01 00:07"),
-                _utc("2024-02-01 00:08"),
-                _utc("2024-02-01 00:09"),
-                _utc("2024-02-01 00:10"),
-                _utc("2024-02-01 00:11"),
-                _utc("2024-02-01 00:12"),
-                _utc("2024-02-01 00:15"),
-            ],
-            "heart_rate": [50, 55, 60, 65, 70, 45, 52, 62, 72, 92, 101],
-            "heart_rate_status": ["valid"] * 11,
+            "timestamp_utc": timestamps,
+            "heart_rate": heart_rates[:periods],
+            "heart_rate_status": ["valid"] * periods,
         }
     )
     stress = pd.DataFrame(
         {
-            "timestamp_utc": [
-                _utc("2024-02-01 00:00"),
-                _utc("2024-02-01 00:01"),
-                _utc("2024-02-01 00:02"),
-                _utc("2024-02-01 00:04"),
-                _utc("2024-02-01 00:07"),
-                _utc("2024-02-01 00:08"),
-                _utc("2024-02-01 00:09"),
-                _utc("2024-02-01 00:10"),
-                _utc("2024-02-01 00:11"),
-                _utc("2024-02-01 00:12"),
-                _utc("2024-02-01 00:15"),
-            ],
-            "stress_level_raw": [80, 70, 20, 10, 5, 30, 55, -1, -2, 85, 20],
-            "stress_level": [999] * 11,
-            "stress_status": ["unmeasurable"] * 11,
+            "timestamp_utc": timestamps,
+            "stress_level_raw": stress_values[:periods],
+            "stress_level": [999] * periods,
+            "stress_status": ["unmeasurable"] * periods,
         }
     )
-    foundation = build_monitoring_daily_features(heart_rate, stress, windows)
-    foundation["foundation_marker"] = 1.23
-    return heart_rate, stress, windows, foundation
+    return heart_rate, stress
 
 
-def _feature_row() -> pd.Series:
-    return _feature_frame().iloc[0]
+def _quality_index_for(
+    heart_rate: pd.DataFrame,
+    stress: pd.DataFrame,
+    windows: pd.DataFrame,
+    *,
+    config: MonitoringCoreConfig | None = None,
+) -> pd.DataFrame:
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress, config=config)
+    quality_windows = build_monitoring_quality_windows(heart_rate, stress, analysis, config=config)
+    return build_monitoring_quality_index(analysis, quality_windows, config=config)
 
 
-def _feature_frame() -> pd.DataFrame:
-    heart_rate, stress, windows, foundation = _fixture_inputs()
-    features = build_monitoring_feature_library(
+def _small_feature_inputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    windows = _window_frame(
+        calendar_date="2024-02-01",
+        sleep_start="2024-02-01 00:00",
+        sleep_end="2024-02-01 00:06",
+        next_observed_sleep_start="2024-02-01 00:12",
+    )
+    heart_rates = [50, 55, 60, 65, 70, 75, 52, 55, 58, 51, 54, 57]
+    stress_values = [10, 20, 40, 60, 80, -1, 10, 40, 60, 90, -2, -1]
+    heart_rate, stress = _minute_monitoring_rows(
+        "2024-02-01 00:00",
+        12,
+        heart_rates=heart_rates,
+        stress_values=stress_values,
+    )
+    quality_index = _quality_index_for(
         heart_rate,
         stress,
         windows,
-        foundation,
+        config=MonitoringCoreConfig(min_valid_minutes=1, min_paired_minutes=2, sleep_min_hours=0, wake_min_hours=0),
+    )
+    quality_index["wake_duration_plausible"] = 1
+    return heart_rate, stress, windows, quality_index
+
+
+def _hr_confirmed_minus_2_inputs(
+    heart_rates: list[int],
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    windows = _window_frame(
+        calendar_date="2024-04-01",
+        sleep_start="2024-04-01 00:00",
+        sleep_end="2024-04-01 00:01",
+        next_observed_sleep_start="2024-04-01 00:07",
+    )
+    heart_rate, stress = _minute_monitoring_rows(
+        "2024-04-01 00:01",
+        6,
+        heart_rates=heart_rates,
+        stress_values=[10, 40, 80, -2, -2, -1],
+    )
+    quality_index = _quality_index_for(
+        heart_rate,
+        stress,
+        windows,
+        config=MonitoringCoreConfig(min_valid_minutes=1, min_paired_minutes=2, sleep_min_hours=0, wake_min_hours=0),
+    )
+    quality_index["wake_duration_plausible"] = 1
+    return heart_rate, stress, quality_index
+
+
+def _assert_no_forbidden_columns(frame: pd.DataFrame) -> None:
+    bad = [column for column in frame.columns if any(token in column for token in FORBIDDEN_FEATURE_TOKENS)]
+    assert bad == []
+
+
+def test_analysis_windows_keep_normal_observed_next_sleep() -> None:
+    windows = _window_frame(next_observed_sleep_start="2024-03-02 22:00")
+    heart_rate, stress = _minute_monitoring_rows("2024-03-02 06:00", 60)
+
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress)
+
+    assert len(analysis) == 1
+    row = analysis.iloc[0]
+    assert row["next_sleep_status"] == "observed_within_cutoff"
+    assert row["next_sleep_start_known"] == 1
+    assert row["wake_end_known"] == 1
+    assert row["boundary_confidence"] == "observed"
+    assert row["wake_end_source"] == "observed_next_sleep"
+    assert row["wake_duration_hours"] == pytest.approx(16)
+
+
+def test_analysis_windows_accept_late_after_cutoff_sleep_with_plausible_duration() -> None:
+    windows = _window_frame(
+        calendar_date="2024-06-08",
+        sleep_start="2024-06-08 01:00",
+        sleep_end="2024-06-08 13:00",
+        next_observed_sleep_start="2024-06-09 15:00",
+        next_sleep_status="missing_after_cutoff",
+    )
+    heart_rate, stress = _minute_monitoring_rows("2024-06-08 13:00", 60)
+
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress)
+
+    assert len(analysis) == 1
+    row = analysis.iloc[0]
+    assert row["analysis_window_id"] == "2024-06-08_0001_late_observed"
+    assert row["boundary_confidence"] == "observed_late_within_duration"
+    assert row["wake_end_source"] == "observed_next_sleep_after_cutoff_within_duration"
+    assert row["wake_end_known"] == 1
+    assert row["next_sleep_start_known"] == 1
+    assert row["wake_duration_hours"] == pytest.approx(26)
+    assert row["next_sleep_start_utc"] == row["next_observed_sleep_start_utc"]
+
+
+def test_analysis_windows_do_not_noon_cap_missing_after_cutoff_without_split() -> None:
+    windows = _window_frame(
+        next_observed_sleep_start="2024-03-03 13:00",
+        next_sleep_status="missing_after_cutoff",
+    )
+    heart_rate = pd.DataFrame(columns=["timestamp_utc", "heart_rate", "heart_rate_status"])
+    stress = pd.DataFrame(columns=["timestamp_utc", "stress_level_raw", "stress_level", "stress_status"])
+
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress)
+
+    assert len(analysis) == 1
+    row = analysis.iloc[0]
+    assert row["next_sleep_start_known"] == 0
+    assert row["wake_end_known"] == 0
+    assert row["boundary_confidence"] == "missing_next_sleep"
+    assert row["wake_end_source"] == "missing_after_cutoff_no_split"
+    assert pd.isna(row["wake_end_utc"])
+    assert pd.isna(row["wake_duration_hours"])
+    assert row["observed_wake_duration_hours"] == pytest.approx(31)
+
+
+def test_analysis_windows_split_one_glued_wake_interval_with_synthetic_midpoint() -> None:
+    windows = _window_frame(
+        next_observed_sleep_start="2024-03-03 22:00",
+        next_sleep_status="missing_after_cutoff",
+    )
+    heart_rate, stress = _minute_monitoring_rows("2024-03-02 06:00", 60)
+
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress)
+
+    assert len(analysis) == 2
+    first, second = analysis.iloc[0], analysis.iloc[1]
+    assert first["wake_end_source"] == "synthetic_midpoint_split"
+    assert second["wake_end_source"] == "observed_next_sleep_after_split"
+    assert first["next_sleep_start_known"] == 0
+    assert second["next_sleep_start_known"] == 1
+    assert first["wake_start_known"] == 1
+    assert second["wake_start_known"] == 0
+    assert pd.notna(first["synthetic_wake_split_utc"])
+    assert first["synthetic_wake_split_utc"] == second["synthetic_wake_split_utc"]
+    assert first["wake_duration_hours"] == pytest.approx(20)
+    assert second["wake_duration_hours"] == pytest.approx(20)
+
+
+def test_analysis_windows_avoid_split_when_split_day_collides_with_real_sleep_day() -> None:
+    first = _window_frame(
+        calendar_date="2024-03-01",
+        sleep_start="2024-03-01 22:00",
+        sleep_end="2024-03-02 06:00",
+        next_observed_sleep_start="2024-03-03 22:00",
+        next_sleep_status="missing_after_cutoff",
+    )
+    second = _window_frame(
+        calendar_date="2024-03-03",
+        sleep_start="2024-03-03 22:00",
+        sleep_end="2024-03-04 06:00",
+        next_observed_sleep_start="2024-03-04 22:00",
+    )
+    windows = pd.concat([first, second], ignore_index=True)
+    heart_rate, stress = _minute_monitoring_rows("2024-03-02 06:00", 60)
+
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress)
+    dates = pd.to_datetime(analysis["calendarDate"]).dt.normalize()
+
+    assert len(analysis) == 2
+    assert dates.duplicated().sum() == 0
+    first_row = analysis.loc[analysis["analysis_window_id"].str.contains("2024-03-01_0001")].iloc[0]
+    assert first_row["wake_end_source"] == "split_collision_existing_calendarDate"
+    assert first_row["boundary_confidence"] == "missing_next_sleep"
+    assert first_row["wake_end_known"] == 0
+    assert pd.isna(first_row["wake_end_utc"])
+    assert not analysis["analysis_window_id"].str.contains("split_b").any()
+
+
+def test_analysis_windows_mark_very_long_gap_unsupported() -> None:
+    windows = _window_frame(
+        next_observed_sleep_start="2024-03-06 00:00",
+        next_sleep_status="missing_after_cutoff",
+    )
+    heart_rate, stress = _minute_monitoring_rows("2024-03-02 06:00", 60)
+
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress)
+
+    assert len(analysis) == 1
+    row = analysis.iloc[0]
+    assert row["unsupported_multi_day_gap"] == 1
+    assert row["boundary_confidence"] == "unsupported_multi_day_gap"
+    assert row["next_sleep_start_known"] == 0
+    assert pd.isna(row["wake_end_utc"])
+
+
+def test_quality_full_and_core_outputs_keep_unique_calendar_dates() -> None:
+    first = _window_frame(
+        calendar_date="2024-03-01",
+        sleep_start="2024-03-01 22:00",
+        sleep_end="2024-03-02 06:00",
+        next_observed_sleep_start="2024-03-03 22:00",
+        next_sleep_status="missing_after_cutoff",
+    )
+    second = _window_frame(
+        calendar_date="2024-03-03",
+        sleep_start="2024-03-03 22:00",
+        sleep_end="2024-03-04 06:00",
+        next_observed_sleep_start="2024-03-04 22:00",
+    )
+    windows = pd.concat([first, second], ignore_index=True)
+    heart_rate, stress = _minute_monitoring_rows("2024-03-02 06:00", 60)
+    config = MonitoringCoreConfig(min_valid_minutes=1, min_paired_minutes=2)
+
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress, config=config)
+    quality_windows = build_monitoring_quality_windows(heart_rate, stress, analysis, config=config)
+    quality_index = build_monitoring_quality_index(analysis, quality_windows, config=config)
+    full = build_monitoring_features_full(
+        heart_rate,
+        stress,
+        quality_index,
         max_hr_bpm=100,
-        gap_break_minutes=2,
         min_valid_minutes=1,
-        min_paired_minutes=3,
+        min_paired_minutes=2,
     )
-    assert len(features) == 1
-    return features
+    core = select_monitoring_core_features(full)
+
+    for frame in [quality_index, full, core]:
+        dates = pd.to_datetime(frame["calendarDate"]).dt.normalize()
+        assert dates.duplicated().sum() == 0
 
 
-def test_feature_library_preserves_foundation_and_adds_distribution_states_and_zones() -> None:
-    row = _feature_row()
+def test_quality_index_keeps_raw_stress_status_context_outside_feature_tables() -> None:
+    windows = _window_frame()
+    heart_rate, stress = _minute_monitoring_rows(
+        "2024-03-01 22:00",
+        1440,
+        stress_values=([10, 40, 60, 90, -2, -1] * 240),
+    )
 
-    assert row["foundation_marker"] == 1.23
-    assert row["sleep_hr_min"] == 50
-    assert row["sleep_hr_max"] == 70
-    assert row["sleep_hr_range"] == 20
-    assert row["wake_hr_frac_below_zone1"] == pytest.approx(1 / 6)
-    assert row["wake_hr_frac_zone1_50_60"] == pytest.approx(1 / 6)
-    assert row["wake_hr_frac_zone2_60_70"] == pytest.approx(1 / 6)
-    assert row["wake_hr_frac_zone3_70_80"] == pytest.approx(1 / 6)
-    assert row["wake_hr_frac_zone4_80_90"] == pytest.approx(0)
-    assert row["wake_hr_frac_zone5_90_100"] == pytest.approx(1 / 6)
-    assert row["wake_hr_frac_above_mhr"] == pytest.approx(1 / 6)
-    assert row["wake_stress_frac_resting_0_25"] == pytest.approx(1 / 4)
-    assert row["wake_stress_frac_low_26_50"] == pytest.approx(1 / 4)
-    assert row["wake_stress_frac_medium_51_75"] == pytest.approx(1 / 4)
-    assert row["wake_stress_frac_high_76_100"] == pytest.approx(1 / 4)
-    assert row["wake_stress_mean"] == pytest.approx((30 + 55 + 85 + 20) / 4)
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress)
+    quality_windows = build_monitoring_quality_windows(heart_rate, stress, analysis)
+    quality_index = build_monitoring_quality_index(analysis, quality_windows)
+
+    wake_stress = quality_windows.loc[
+        (quality_windows["window_name"] == "wake") & (quality_windows["signal"] == "stress")
+    ].iloc[0]
+    assert wake_stress["raw_minus_2_fraction"] == pytest.approx(1 / 6)
+    assert wake_stress["raw_minus_2_with_hr_fraction"] == pytest.approx(1 / 6)
+    assert wake_stress["raw_minus_2_without_hr_fraction"] == pytest.approx(0)
+    assert wake_stress["active_proxy_fraction"] == pytest.approx(1 / 6)
+    assert wake_stress["raw_valid_fraction"] == pytest.approx(4 / 6)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_fraction"] == pytest.approx(1 / 6)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_with_hr_fraction"] == pytest.approx(1 / 6)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_without_hr_fraction"] == pytest.approx(0)
+    assert quality_index.loc[0, "wake_stress_active_proxy_fraction"] == pytest.approx(1 / 6)
+    assert quality_index.loc[0, "wake_duration_plausible"] == 1
+    assert quality_index.loc[0, "wake_quarters_usable"] == 1
+
+
+def test_stress_frac_active_uses_only_raw_minus_2_with_same_minute_valid_hr() -> None:
+    heart_rate, stress, quality_index = _hr_confirmed_minus_2_inputs([50, 60, 70, 80, 0, 90])
+
+    features = build_monitoring_features_full(
+        heart_rate,
+        stress,
+        quality_index,
+        max_hr_bpm=100,
+        min_valid_minutes=1,
+        min_paired_minutes=2,
+    )
+    row = features.iloc[0]
+
+    assert row["wake_stress_frac_resting"] == pytest.approx(1 / 4)
+    assert row["wake_stress_frac_low"] == pytest.approx(1 / 4)
+    assert row["wake_stress_frac_medium"] == pytest.approx(0)
+    assert row["wake_stress_frac_high"] == pytest.approx(1 / 4)
+    assert row["wake_stress_frac_active"] == pytest.approx(1 / 4)
+    assert row["wake_stress_mean"] == pytest.approx((10 + 40 + 80) / 3)
+    assert row["wake_stress_active_has_event"] == 1
+    assert row["wake_stress_active_episode_count"] == 1
+    assert row["wake_stress_active_total_minutes"] == 1
+    assert row["wake_stress_active_time_to_first_minutes"] == pytest.approx(3)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_fraction"] == pytest.approx(2 / 6)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_with_hr_fraction"] == pytest.approx(1 / 6)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_without_hr_fraction"] == pytest.approx(1 / 6)
+    assert quality_index.loc[0, "wake_stress_active_proxy_fraction"] == pytest.approx(1 / 6)
+
+
+def test_raw_minus_2_without_same_minute_valid_hr_is_not_active_or_episode() -> None:
+    heart_rate, stress, quality_index = _hr_confirmed_minus_2_inputs([50, 60, 70, 0, 0, 90])
+
+    features = build_monitoring_features_full(
+        heart_rate,
+        stress,
+        quality_index,
+        max_hr_bpm=100,
+        min_valid_minutes=1,
+        min_paired_minutes=2,
+    )
+    row = features.iloc[0]
+
+    assert row["wake_stress_frac_resting"] == pytest.approx(1 / 3)
+    assert row["wake_stress_frac_low"] == pytest.approx(1 / 3)
+    assert row["wake_stress_frac_medium"] == pytest.approx(0)
+    assert row["wake_stress_frac_high"] == pytest.approx(1 / 3)
+    assert row["wake_stress_frac_active"] == pytest.approx(0)
+    assert row["wake_stress_mean"] == pytest.approx((10 + 40 + 80) / 3)
+    assert row["wake_stress_active_has_event"] == 0
+    assert row["wake_stress_active_episode_count"] == 0
+    assert row["wake_stress_active_total_minutes"] == 0
+    assert pd.isna(row["wake_stress_active_time_to_first_minutes"])
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_fraction"] == pytest.approx(2 / 6)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_with_hr_fraction"] == pytest.approx(0)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_without_hr_fraction"] == pytest.approx(2 / 6)
+    assert quality_index.loc[0, "wake_stress_active_proxy_fraction"] == pytest.approx(0)
+
+
+def test_full_features_use_fixed_entropy_active_stress_and_no_event_episode_policy() -> None:
+    heart_rate, stress, _windows, quality_index = _small_feature_inputs()
+
+    features = build_monitoring_features_full(
+        heart_rate,
+        stress,
+        quality_index,
+        max_hr_bpm=100,
+        min_valid_minutes=1,
+        min_paired_minutes=2,
+    )
+    row = features.iloc[0]
+
+    assert features.shape[1] <= 400
+    _assert_no_forbidden_columns(features)
+    assert row["wake_stress_frac_resting"] == pytest.approx(1 / 5)
+    assert row["wake_stress_frac_low"] == pytest.approx(1 / 5)
+    assert row["wake_stress_frac_medium"] == pytest.approx(1 / 5)
+    assert row["wake_stress_frac_high"] == pytest.approx(1 / 5)
+    assert row["wake_stress_frac_active"] == pytest.approx(1 / 5)
+    assert row["wake_hr_zone2_plus_has_event"] == 0
+    assert row["wake_hr_zone2_plus_episode_count"] == 0
+    assert row["wake_hr_zone2_plus_total_minutes"] == 0
+    assert row["wake_hr_zone2_plus_mean_duration_minutes"] == 0
+    assert row["wake_hr_zone2_plus_fragmentation_index"] == 0
+    assert pd.isna(row["wake_hr_zone2_plus_time_to_first_minutes"])
+    assert "wake_hr_zone2_plus_time_since_last_minutes" not in features.columns
+
     assert row["sleep_hr_histogram_entropy"] == pytest.approx(
-        -((2 / 5) * np.log2(2 / 5) + (2 / 5) * np.log2(2 / 5) + (1 / 5) * np.log2(1 / 5))
+        -((2 / 6) * np.log2(2 / 6) + (2 / 6) * np.log2(2 / 6) + (2 / 6) * np.log2(2 / 6))
     )
-    assert row["sleep_stress_histogram_entropy"] == pytest.approx(
-        -((3 / 5) * np.log2(3 / 5) + (1 / 5) * np.log2(1 / 5) + (1 / 5) * np.log2(1 / 5))
-    )
-    dynamic_counts, _edges = np.histogram([50, 55, 60, 65, 70], bins=10)
+    dynamic_counts, _edges = np.histogram([50, 55, 60, 65, 70, 75], bins=10)
     dynamic_probabilities = dynamic_counts[dynamic_counts > 0] / dynamic_counts.sum()
     dynamic_entropy = float(-(dynamic_probabilities * np.log2(dynamic_probabilities)).sum())
     assert row["sleep_hr_histogram_entropy"] != pytest.approx(dynamic_entropy)
-
-
-def test_gap_aware_variability_and_episodes_break_on_large_gaps() -> None:
-    row = _feature_row()
-
-    assert row["sleep_hr_diff_valid_pair_count"] == 3
-    assert row["sleep_hr_diff_gap_break_count"] == 1
-    assert row["sleep_hr_mean_abs_diff"] == pytest.approx(5)
-    assert row["sleep_hr_longest_missing_gap_minutes"] == pytest.approx(2)
-    assert row["sleep_hr_missing_gap_count"] == 2
-    assert row["wake_stress_diff_gap_break_count"] == 2
-    assert row["wake_stress_high_episode_count"] == 1
-    assert row["wake_stress_high_total_minutes"] == 1
-    assert row["wake_stress_high_time_to_first_minutes"] == pytest.approx(4)
-    assert row["wake_stress_elevated_episode_count"] == 2
-    assert row["wake_hr_zone1_plus_episode_count"] == 2
-    assert row["wake_hr_zone1_plus_total_minutes"] == 5
-
-
-def test_windows_recovery_contrast_coupling_and_raw_status_features() -> None:
-    row = _feature_row()
-
-    assert row["wake_q1_hr_mean"] == pytest.approx((45 + 52) / 2)
-    assert row["pre_sleep_4h_hr_mean"] == pytest.approx((45 + 52 + 62 + 72 + 92 + 101) / 6)
-    assert row["sleep_stress_time_to_low_stress_minutes"] == pytest.approx(2)
-    assert row["wake_stress_raw_minus_1_count"] == 1
-    assert row["wake_stress_raw_minus_2_count"] == 1
-    assert row["wake_stress_large_motion_proxy_minutes"] == 1
-    assert row["wake_stress_large_motion_proxy_fraction"] == pytest.approx(1 / 6)
-    assert row["wake_paired_hr_stress_valid_minutes"] == 4
-    assert row["wake_paired_hr_stress_coverage_fraction"] == pytest.approx(4 / 8)
-    assert row["wake_frac_hr_zone1_plus_stress_elevated"] == pytest.approx(2 / 4)
-    assert row["wake_frac_hr_zone1_plus_stress_low_or_resting"] == pytest.approx(1 / 4)
-    assert row["wake_frac_hr_below_zone1_stress_high"] == pytest.approx(0)
-    assert row["stress_wake_high_fraction_minus_sleep"] == pytest.approx((1 / 4) - (1 / 5))
-
-
-def test_feature_catalog_classifies_columns_and_dataset_diagnostics() -> None:
-    features = _feature_frame()
-    features["all_null_probe"] = np.nan
-    features["mostly_missing_probe"] = [1.0]
-    features = pd.concat(
-        [
-            features,
-            features.assign(
-                calendarDate=pd.Timestamp("2024-02-02"),
-                mostly_missing_probe=np.nan,
-                wake_stress_frac_high_76_100=0.0,
-            ),
-        ],
-        ignore_index=True,
+    assert row["sleep_stress_histogram_entropy"] == pytest.approx(
+        -((2 / 5) * np.log2(2 / 5) + (1 / 5) * np.log2(1 / 5) * 3)
     )
 
+
+def test_core_features_are_compact_subset_without_quality_columns() -> None:
+    heart_rate, stress, _windows, quality_index = _small_feature_inputs()
+    full = build_monitoring_features_full(
+        heart_rate,
+        stress,
+        quality_index,
+        max_hr_bpm=100,
+        min_valid_minutes=1,
+        min_paired_minutes=2,
+    )
+    core = select_monitoring_core_features(full)
+
+    assert core.shape[1] <= 100
+    assert set(["analysis_window_id", "calendarDate"]).issubset(core.columns)
+    assert "wake_stress_frac_active" in core.columns
+    assert "wake_q1_hr_mean" in core.columns
+    assert "pre_sleep_4h_hr_early_minus_late" in core.columns
+    _assert_no_forbidden_columns(core)
+
+
+def test_window_dominated_by_raw_minus_2_has_quality_context_and_missing_numeric_stress() -> None:
+    windows = _window_frame(
+        calendar_date="2024-02-03",
+        sleep_start="2024-02-03 00:00",
+        sleep_end="2024-02-03 00:10",
+        next_observed_sleep_start="2024-02-03 00:20",
+    )
+    heart_rate, stress = _minute_monitoring_rows(
+        "2024-02-03 00:00",
+        20,
+        stress_values=[20] * 10 + [-2] * 10,
+    )
+    quality_index = _quality_index_for(
+        heart_rate,
+        stress,
+        windows,
+        config=MonitoringCoreConfig(min_valid_minutes=5, sleep_min_hours=0, wake_min_hours=0),
+    )
+    features = build_monitoring_features_full(
+        heart_rate,
+        stress,
+        quality_index.assign(wake_duration_plausible=1),
+        max_hr_bpm=100,
+        min_valid_minutes=5,
+        min_paired_minutes=2,
+    )
+
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_with_hr_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_without_hr_fraction"] == pytest.approx(0.0)
+    assert quality_index.loc[0, "wake_stress_active_proxy_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "wake_stress_coverage_fraction"] == pytest.approx(0.0)
+    assert pd.isna(features.loc[0, "wake_stress_mean"])
+    assert features.loc[0, "wake_stress_frac_active"] == pytest.approx(1.0)
+
+
+def test_feature_catalog_classifies_cleaned_full_feature_columns() -> None:
+    heart_rate, stress, _windows, quality_index = _small_feature_inputs()
+    features = build_monitoring_features_full(
+        heart_rate,
+        stress,
+        quality_index,
+        max_hr_bpm=100,
+        min_valid_minutes=1,
+        min_paired_minutes=2,
+    )
     catalog = build_monitoring_feature_catalog(features)
     by_column = catalog.set_index("column")
 
     assert len(catalog) == features.shape[1]
-    assert by_column.loc["calendarDate", "family"] == "identity/window metadata"
-    assert by_column.loc["sleep_hr_coverage_fraction", "family"] == "foundation coverage"
+    assert by_column.loc["analysis_window_id", "family"] == "identity/window metadata"
     assert by_column.loc["sleep_hr_histogram_entropy", "family"] == "distribution/shape"
     assert "fixed maximum-heart-rate zone bins" in by_column.loc["sleep_hr_histogram_entropy", "description"]
-    assert by_column.loc["wake_stress_frac_high_76_100", "family"] == "stress state fractions"
-    assert by_column.loc["wake_hr_frac_zone2_60_70", "family"] == "HR MHR zones"
-    assert by_column.loc["wake_paired_hr_stress_valid_minutes", "family"] == "HR/stress coupling"
-    assert by_column.loc["wake_stress_raw_minus_2_fraction", "family"] == "raw stress status"
-    assert bool(by_column.loc["all_null_probe", "is_all_null"])
-    assert bool(by_column.loc["mostly_missing_probe", "is_constant_non_null"])
-    assert by_column.loc["mostly_missing_probe", "missing_pct"] == pytest.approx(50.0)
-    assert by_column.loc["wake_hr_frac_zone4_80_90", "unit"] == "fraction 0..1"
+    assert by_column.loc["wake_stress_frac_active", "family"] == "stress state fractions"
+    assert "same-minute valid HR" in by_column.loc["wake_stress_frac_active", "description"]
+    assert by_column.loc["wake_hr_frac_zone2", "family"] == "HR MHR zones"
+    assert by_column.loc["wake_hr_zone2_plus_has_event", "family"] == "episodes/state structure"
+    assert "no-event cases" in by_column.loc["wake_hr_zone2_plus_has_event", "description"]
     assert bool(by_column.loc["calendarDate", "candidate_model_feature"]) is False
