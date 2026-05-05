@@ -65,4 +65,9 @@
 
 - Row-level filtering lives in `data/processed/monitoring_quality_index.parquet`.
 - Join on `analysis_window_id` before modeling or interpreting window-heavy features.
+- `modeling_recovery_v0_eligible` is a baseline row-level flag for plausible sleep-wake-next-sleep windows with usable sleep and whole-wake HR/stress.
+- `pre_sleep_4h_usable` is optional for baseline eligibility; filter on it for stricter pre-sleep sensitivity analyses.
+- Baseline usable flags allow max gaps up to `360` minutes; use `*_max_gap_minutes <= 180` for stricter gap sensitivity subsets.
+- In the quality index, stress coverage and stress usable flags count raw `0..100` plus raw `-2` only when same-minute valid HR confirms activity.
+- Numeric stress feature statistics in this table still use only raw `0..100` values.
 - The cleaned feature tables intentionally avoid duplicating quality diagnostics as candidate predictors.

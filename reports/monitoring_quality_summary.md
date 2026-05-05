@@ -13,7 +13,7 @@ This report summarizes the compact quality layer used before feature selection. 
 - Rows with synthetic split timestamp populated: `48`
 - Unsupported multi-day gap rows: `27`
 - Rows plausible under `2..16h` sleep and `6..30h` wake bounds: `446`
-- Rows eligible for recovery modeling v0: `374`
+- Rows eligible for recovery modeling v0: `408`
 - Max accepted/split wake duration: `26.87` hours
 - Max raw observed wake duration: `3830.30` hours
 
@@ -43,11 +43,11 @@ This report summarizes the compact quality layer used before feature selection. 
 ## Usable Flags
 
 - `sleep_hr_usable`: `471`
-- `sleep_stress_numeric_usable`: `472`
-- `wake_hr_usable`: `405`
-- `wake_stress_numeric_usable`: `394`
-- `pre_sleep_4h_usable`: `421`
-- `wake_quarters_usable`: `275`
+- `sleep_stress_usable`: `472`
+- `wake_hr_usable`: `423`
+- `wake_stress_usable`: `423`
+- `pre_sleep_4h_usable`: `428`
+- `wake_quarters_usable`: `391`
 
 ## Internal Quality Windows
 
@@ -63,4 +63,10 @@ Long-format quality-window diagnostics are computed internally and are not persi
 - Longer gaps are marked unsupported instead of being expanded into fake analysis days.
 - Sleep duration plausibility uses `2..16` hours; wake duration plausibility uses `6..30` hours.
 - Quality prioritizes coverage fraction, largest gap duration, boundary coverage, and known/missing boundaries.
+- Baseline usable flags allow max gaps up to `360` minutes; analysts can still create stricter subsets such as `*_max_gap_minutes <= 180`.
+- `modeling_recovery_v0_eligible` is a baseline row-level recovery modeling flag requiring plausible sleep/wake windows and usable whole sleep/wake HR/stress.
+- `pre_sleep_4h_usable` remains an optional pre-sleep anchored-feature diagnostic and is not a hard baseline eligibility requirement.
+- Stress quality coverage counts semantic stress observations: raw `0..100` plus raw `-2` only when same-minute valid HR confirms activity.
+- Numeric stress feature statistics still use only raw `0..100` values.
+- Raw stress `-1` and raw `-2` without same-minute valid HR remain unmeasurable for stress coverage.
 - Raw stress `-2` is split into HR-confirmed active proxy and no-HR unmeasurable diagnostics; only same-minute valid HR confirms activity.

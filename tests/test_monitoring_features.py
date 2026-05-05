@@ -129,6 +129,20 @@ def _minute_monitoring_rows(
     return heart_rate, stress
 
 
+def _gapped_monitoring_rows(
+    start: str,
+    periods: int,
+    invalid_ranges: list[tuple[int, int]],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    observed = [True] * periods
+    for gap_start, gap_end in invalid_ranges:
+        for idx in range(max(gap_start, 0), min(gap_end, periods)):
+            observed[idx] = False
+    heart_rates = [60 if is_observed else 0 for is_observed in observed]
+    stress_values = [20 if is_observed else -1 for is_observed in observed]
+    return _minute_monitoring_rows(start, periods, heart_rates=heart_rates, stress_values=stress_values)
+
+
 def _quality_index_for(
     heart_rate: pd.DataFrame,
     stress: pd.DataFrame,
@@ -139,6 +153,19 @@ def _quality_index_for(
     analysis = build_monitoring_analysis_windows(windows, heart_rate, stress, config=config)
     quality_windows = build_monitoring_quality_windows(heart_rate, stress, analysis, config=config)
     return build_monitoring_quality_index(analysis, quality_windows, config=config)
+
+
+def _quality_outputs_for(
+    heart_rate: pd.DataFrame,
+    stress: pd.DataFrame,
+    windows: pd.DataFrame,
+    *,
+    config: MonitoringCoreConfig | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    analysis = build_monitoring_analysis_windows(windows, heart_rate, stress, config=config)
+    quality_windows = build_monitoring_quality_windows(heart_rate, stress, analysis, config=config)
+    quality_index = build_monitoring_quality_index(analysis, quality_windows, config=config)
+    return analysis, quality_windows, quality_index
 
 
 def _small_feature_inputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -388,6 +415,7 @@ def test_quality_index_keeps_raw_stress_status_context_outside_feature_tables() 
     assert quality_index.loc[0, "wake_stress_active_proxy_fraction"] == pytest.approx(1 / 6)
     assert quality_index.loc[0, "wake_duration_plausible"] == 1
     assert quality_index.loc[0, "wake_quarters_usable"] == 1
+    assert "wake_stress_numeric_usable" not in quality_index.columns
 
 
 def test_stress_frac_active_uses_only_raw_minus_2_with_same_minute_valid_hr() -> None:
@@ -539,9 +567,193 @@ def test_window_dominated_by_raw_minus_2_has_quality_context_and_missing_numeric
     assert quality_index.loc[0, "wake_stress_raw_minus_2_with_hr_fraction"] == pytest.approx(1.0)
     assert quality_index.loc[0, "wake_stress_raw_minus_2_without_hr_fraction"] == pytest.approx(0.0)
     assert quality_index.loc[0, "wake_stress_active_proxy_fraction"] == pytest.approx(1.0)
-    assert quality_index.loc[0, "wake_stress_coverage_fraction"] == pytest.approx(0.0)
+    assert quality_index.loc[0, "wake_stress_coverage_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "wake_stress_max_gap_minutes"] == pytest.approx(0.0)
+    assert quality_index.loc[0, "wake_stress_start_boundary_covered"] == 1
+    assert quality_index.loc[0, "wake_stress_end_boundary_covered"] == 1
+    assert quality_index.loc[0, "wake_stress_usable"] == 1
     assert pd.isna(features.loc[0, "wake_stress_mean"])
     assert features.loc[0, "wake_stress_frac_active"] == pytest.approx(1.0)
+
+
+def test_raw_minus_2_without_valid_hr_does_not_count_as_stress_coverage() -> None:
+    windows = _window_frame(
+        calendar_date="2024-02-04",
+        sleep_start="2024-02-04 00:00",
+        sleep_end="2024-02-04 00:01",
+        next_observed_sleep_start="2024-02-04 00:07",
+    )
+    heart_rate, stress = _minute_monitoring_rows(
+        "2024-02-04 00:01",
+        6,
+        heart_rates=[0, 0, 0, 0, 0, 0],
+        stress_values=[-2, -2, -2, -2, -2, -2],
+    )
+    quality_index = _quality_index_for(
+        heart_rate,
+        stress,
+        windows,
+        config=MonitoringCoreConfig(min_valid_minutes=1, min_paired_minutes=2, sleep_min_hours=0, wake_min_hours=0),
+    )
+    features = build_monitoring_features_full(
+        heart_rate,
+        stress,
+        quality_index.assign(wake_duration_plausible=1),
+        max_hr_bpm=100,
+        min_valid_minutes=1,
+        min_paired_minutes=2,
+    )
+
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_with_hr_fraction"] == pytest.approx(0.0)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_without_hr_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "wake_stress_coverage_fraction"] == pytest.approx(0.0)
+    assert quality_index.loc[0, "wake_stress_max_gap_minutes"] == pytest.approx(6.0)
+    assert quality_index.loc[0, "wake_stress_start_boundary_covered"] == 0
+    assert quality_index.loc[0, "wake_stress_end_boundary_covered"] == 0
+    assert quality_index.loc[0, "wake_stress_usable"] == 0
+    assert pd.isna(features.loc[0, "wake_stress_frac_active"])
+    assert features.loc[0, "wake_stress_active_has_event"] == 0
+
+
+def test_mixed_numeric_and_hr_confirmed_minus_2_count_toward_stress_quality_gaps() -> None:
+    windows = _window_frame(
+        calendar_date="2024-02-05",
+        sleep_start="2024-02-05 00:00",
+        sleep_end="2024-02-05 00:01",
+        next_observed_sleep_start="2024-02-05 00:07",
+    )
+    heart_rate, stress = _minute_monitoring_rows(
+        "2024-02-05 00:01",
+        6,
+        heart_rates=[50, 60, 0, 70, 80, 90],
+        stress_values=[10, -2, -2, 40, 80, -1],
+    )
+
+    _analysis, quality_windows, quality_index = _quality_outputs_for(
+        heart_rate,
+        stress,
+        windows,
+        config=MonitoringCoreConfig(min_valid_minutes=1, min_paired_minutes=2, sleep_min_hours=0, wake_min_hours=0),
+    )
+    wake_stress = quality_windows.loc[
+        (quality_windows["window_name"] == "wake") & (quality_windows["signal"] == "stress")
+    ].iloc[0]
+
+    assert wake_stress["valid_numeric_minutes"] == 3
+    assert wake_stress["observed_semantic_minutes"] == 4
+    assert wake_stress["coverage_fraction"] == pytest.approx(4 / 6)
+    assert wake_stress["max_gap_minutes"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "wake_stress_coverage_fraction"] == pytest.approx(4 / 6)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_with_hr_fraction"] == pytest.approx(1 / 6)
+    assert quality_index.loc[0, "wake_stress_raw_minus_2_without_hr_fraction"] == pytest.approx(1 / 6)
+
+
+def test_sleep_wake_pre_sleep_and_quarter_stress_quality_use_semantic_observations() -> None:
+    windows = _window_frame()
+    heart_rate, stress = _minute_monitoring_rows(
+        "2024-03-01 22:00",
+        1440,
+        stress_values=[-2] * 1440,
+    )
+
+    quality_index = _quality_index_for(heart_rate, stress, windows)
+
+    assert quality_index.loc[0, "sleep_stress_coverage_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "wake_stress_coverage_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "pre_sleep_4h_stress_coverage_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "sleep_stress_usable"] == 1
+    assert quality_index.loc[0, "wake_stress_usable"] == 1
+    assert quality_index.loc[0, "pre_sleep_4h_usable"] == 1
+    assert quality_index.loc[0, "wake_quarters_stress_min_coverage_fraction"] == pytest.approx(1.0)
+    assert quality_index.loc[0, "wake_quarters_usable"] == 1
+    assert quality_index.loc[0, "modeling_recovery_v0_eligible"] == 1
+    assert "sleep_stress_numeric_usable" not in quality_index.columns
+    assert "wake_stress_numeric_usable" not in quality_index.columns
+
+
+def test_recovery_eligibility_does_not_require_optional_pre_sleep_usable() -> None:
+    windows = _window_frame(
+        calendar_date="2024-05-01",
+        sleep_start="2024-05-01 00:00",
+        sleep_end="2024-05-01 01:00",
+        next_observed_sleep_start="2024-05-01 09:00",
+    )
+    # Wake is usable, but the optional pre-sleep 4h window starts with a 2h gap.
+    heart_rate, stress = _gapped_monitoring_rows("2024-05-01 00:00", 540, invalid_ranges=[(300, 420)])
+
+    quality_index = _quality_index_for(heart_rate, stress, windows, config=MonitoringCoreConfig(sleep_min_hours=0))
+
+    assert quality_index.loc[0, "sleep_hr_usable"] == 1
+    assert quality_index.loc[0, "sleep_stress_usable"] == 1
+    assert quality_index.loc[0, "wake_hr_usable"] == 1
+    assert quality_index.loc[0, "wake_stress_usable"] == 1
+    assert quality_index.loc[0, "pre_sleep_4h_usable"] == 0
+    assert quality_index.loc[0, "pre_sleep_4h_hr_start_boundary_covered"] == 0
+    assert quality_index.loc[0, "modeling_recovery_v0_eligible"] == 1
+
+
+def test_recovery_eligibility_still_requires_sleep_and_whole_wake_usable() -> None:
+    windows = _window_frame(
+        calendar_date="2024-05-02",
+        sleep_start="2024-05-02 00:00",
+        sleep_end="2024-05-02 01:00",
+        next_observed_sleep_start="2024-05-02 09:00",
+    )
+    # No sleep-phase observations, so baseline row eligibility must still fail.
+    heart_rate, stress = _minute_monitoring_rows("2024-05-02 01:00", 480)
+
+    quality_index = _quality_index_for(heart_rate, stress, windows, config=MonitoringCoreConfig(sleep_min_hours=0))
+
+    assert quality_index.loc[0, "sleep_hr_usable"] == 0
+    assert quality_index.loc[0, "sleep_stress_usable"] == 0
+    assert quality_index.loc[0, "wake_hr_usable"] == 1
+    assert quality_index.loc[0, "wake_stress_usable"] == 1
+    assert quality_index.loc[0, "modeling_recovery_v0_eligible"] == 0
+
+
+def test_baseline_usable_flags_allow_internal_gap_between_180_and_360_minutes() -> None:
+    windows = _window_frame(
+        calendar_date="2024-05-03",
+        sleep_start="2024-05-03 00:00",
+        sleep_end="2024-05-03 01:00",
+        next_observed_sleep_start="2024-05-03 09:00",
+    )
+    # Wake has a 240-minute internal gap, but coverage and boundaries are usable.
+    heart_rate, stress = _gapped_monitoring_rows("2024-05-03 00:00", 540, invalid_ranges=[(180, 420)])
+
+    quality_index = _quality_index_for(heart_rate, stress, windows, config=MonitoringCoreConfig(sleep_min_hours=0))
+
+    assert quality_index.loc[0, "wake_hr_coverage_fraction"] == pytest.approx(0.5)
+    assert quality_index.loc[0, "wake_stress_coverage_fraction"] == pytest.approx(0.5)
+    assert 180 < quality_index.loc[0, "wake_hr_max_gap_minutes"] <= 360
+    assert 180 < quality_index.loc[0, "wake_stress_max_gap_minutes"] <= 360
+    assert quality_index.loc[0, "wake_hr_usable"] == 1
+    assert quality_index.loc[0, "wake_stress_usable"] == 1
+    assert quality_index.loc[0, "modeling_recovery_v0_eligible"] == 1
+
+
+def test_baseline_usable_flags_reject_internal_gap_greater_than_360_minutes() -> None:
+    windows = _window_frame(
+        calendar_date="2024-05-04",
+        sleep_start="2024-05-04 00:00",
+        sleep_end="2024-05-04 01:00",
+        next_observed_sleep_start="2024-05-04 17:00",
+    )
+    # Wake has a 480-minute internal gap; diagnostics remain, but usable flags fail.
+    heart_rate, stress = _gapped_monitoring_rows("2024-05-04 00:00", 1020, invalid_ranges=[(300, 780)])
+
+    quality_index = _quality_index_for(heart_rate, stress, windows, config=MonitoringCoreConfig(sleep_min_hours=0))
+
+    assert quality_index.loc[0, "wake_hr_coverage_fraction"] == pytest.approx(0.5)
+    assert quality_index.loc[0, "wake_stress_coverage_fraction"] == pytest.approx(0.5)
+    assert quality_index.loc[0, "wake_hr_max_gap_minutes"] > 360
+    assert quality_index.loc[0, "wake_stress_max_gap_minutes"] > 360
+    assert quality_index.loc[0, "wake_hr_start_boundary_covered"] == 1
+    assert quality_index.loc[0, "wake_hr_end_boundary_covered"] == 1
+    assert quality_index.loc[0, "wake_hr_usable"] == 0
+    assert quality_index.loc[0, "wake_stress_usable"] == 0
+    assert quality_index.loc[0, "modeling_recovery_v0_eligible"] == 0
 
 
 def test_feature_catalog_classifies_cleaned_full_feature_columns() -> None:

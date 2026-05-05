@@ -32,7 +32,7 @@ class MonitoringCoreConfig:
     max_synthetic_split_gap_hours: float = 60.0
     boundary_gap_tolerance_minutes: float = 60.0
     usable_coverage_fraction: float = 0.50
-    usable_max_gap_minutes: float = 180.0
+    usable_max_gap_minutes: float = 360.0
 
 
 ANALYSIS_WINDOW_COLUMNS = [
@@ -124,9 +124,9 @@ QUALITY_INDEX_COLUMNS = [
     "wake_quarters_stress_min_coverage_fraction",
     "wake_quarters_usable",
     "sleep_hr_usable",
-    "sleep_stress_numeric_usable",
+    "sleep_stress_usable",
     "wake_hr_usable",
-    "wake_stress_numeric_usable",
+    "wake_stress_usable",
     "pre_sleep_4h_usable",
     "modeling_recovery_v0_eligible",
 ]
@@ -637,6 +637,25 @@ def _stress_minus_2_with_valid_hr_mask(stress_subset: pd.DataFrame, heart_rate_s
     return (raw == -2) & stress_timestamps.isin(valid_hr)
 
 
+def _semantic_stress_observed_subset(stress_subset: pd.DataFrame, heart_rate_subset: pd.DataFrame) -> pd.DataFrame:
+    if stress_subset.empty:
+        return stress_subset.copy()
+    raw = pd.to_numeric(
+        stress_subset["stress_level_raw"] if "stress_level_raw" in stress_subset else pd.Series(dtype=float),
+        errors="coerce",
+    )
+    active_mask = _stress_minus_2_with_valid_hr_mask(stress_subset, heart_rate_subset)
+    observed_mask = ((raw >= 0) & (raw <= 100)) | active_mask
+    return stress_subset.loc[observed_mask].copy()
+
+
+def _observed_timestamp_count(subset: pd.DataFrame) -> int:
+    if subset.empty or "timestamp_utc" not in subset.columns:
+        return 0
+    timestamps = pd.to_datetime(subset["timestamp_utc"], errors="coerce", utc=True).dropna().drop_duplicates()
+    return int(len(timestamps))
+
+
 def _signal_value_col(signal: str) -> str:
     return "heart_rate" if signal == "hr" else "stress_level"
 
@@ -696,36 +715,23 @@ def _quality_window_record(
     expected = _duration_minutes(start, end)
     values = _numeric(valid[value_col] if value_col in valid else pd.Series(dtype=float))
     valid_numeric_minutes = int(values.count())
-    coverage = min(valid_numeric_minutes / expected, 1.0) if pd.notna(expected) and expected > 0 else np.nan
-    max_gap = _max_gap_minutes(
-        valid["timestamp_utc"] if "timestamp_utc" in valid else pd.Series(dtype="datetime64[ns, UTC]"),
-        start,
-        end,
-    )
-    if valid.empty:
-        minutes_to_first = np.nan
-        minutes_from_last = np.nan
-    else:
-        ordered = _sort_by_timestamp(valid)
-        minutes_to_first = _duration_minutes(start, pd.Timestamp(ordered.iloc[0]["timestamp_utc"]))
-        minutes_from_last = _duration_minutes(pd.Timestamp(ordered.iloc[-1]["timestamp_utc"]), end)
 
-    start_covered = pd.notna(minutes_to_first) and minutes_to_first <= config.boundary_gap_tolerance_minutes
-    end_covered = pd.notna(minutes_from_last) and minutes_from_last <= config.boundary_gap_tolerance_minutes
     raw_minus_1_fraction = np.nan
     raw_minus_2_fraction = np.nan
     raw_minus_2_with_hr_fraction = np.nan
     raw_minus_2_without_hr_fraction = np.nan
     raw_valid_fraction = np.nan
     active_proxy_fraction = np.nan
+    observed = valid
     if signal == "stress":
+        hr_subset = _time_slice(heart_rate, start, end)
+        observed = _semantic_stress_observed_subset(subset, hr_subset)
         raw = pd.to_numeric(
             subset["stress_level_raw"] if "stress_level_raw" in subset else pd.Series(dtype=float),
             errors="coerce",
         )
         raw_denominator = int(raw.notna().sum())
         if raw_denominator > 0:
-            hr_subset = _time_slice(heart_rate, start, end)
             raw_minus_2_with_hr = _stress_minus_2_with_valid_hr_mask(subset, hr_subset)
             raw_minus_2 = raw == -2
             raw_minus_1_fraction = float((raw == -1).sum() / raw_denominator)
@@ -735,6 +741,22 @@ def _quality_window_record(
             raw_valid_fraction = float(((raw >= 0) & (raw <= 100)).sum() / raw_denominator)
             active_proxy_fraction = raw_minus_2_with_hr_fraction
 
+    observed_minutes = _observed_timestamp_count(observed)
+    coverage = min(observed_minutes / expected, 1.0) if pd.notna(expected) and expected > 0 else np.nan
+    observed_timestamps = (
+        observed["timestamp_utc"] if "timestamp_utc" in observed else pd.Series(dtype="datetime64[ns, UTC]")
+    )
+    max_gap = _max_gap_minutes(observed_timestamps, start, end)
+    if observed.empty:
+        minutes_to_first = np.nan
+        minutes_from_last = np.nan
+    else:
+        ordered = _sort_by_timestamp(observed)
+        minutes_to_first = _duration_minutes(start, pd.Timestamp(ordered.iloc[0]["timestamp_utc"]))
+        minutes_from_last = _duration_minutes(pd.Timestamp(ordered.iloc[-1]["timestamp_utc"]), end)
+
+    start_covered = pd.notna(minutes_to_first) and minutes_to_first <= config.boundary_gap_tolerance_minutes
+    end_covered = pd.notna(minutes_from_last) and minutes_from_last <= config.boundary_gap_tolerance_minutes
     usable = bool(
         pd.notna(coverage)
         and coverage >= config.usable_coverage_fraction
@@ -754,6 +776,7 @@ def _quality_window_record(
         "expected_minutes": expected,
         "observed_raw_minutes": int(len(subset)),
         "valid_numeric_minutes": valid_numeric_minutes,
+        "observed_semantic_minutes": observed_minutes,
         "coverage_fraction": coverage,
         "max_gap_minutes": max_gap,
         "minutes_to_first_valid": minutes_to_first,
@@ -921,9 +944,9 @@ def build_monitoring_quality_index(
             return _quality_value(lookup, analysis_id, window_name, signal, "usable_basic") == 1
 
         row["sleep_hr_usable"] = _flag(usable("sleep", "hr"))
-        row["sleep_stress_numeric_usable"] = _flag(usable("sleep", "stress"))
+        row["sleep_stress_usable"] = _flag(usable("sleep", "stress"))
         row["wake_hr_usable"] = _flag(usable("wake", "hr"))
-        row["wake_stress_numeric_usable"] = _flag(usable("wake", "stress"))
+        row["wake_stress_usable"] = _flag(usable("wake", "stress"))
         row["pre_sleep_4h_usable"] = _flag(usable("pre_sleep_4h", "hr") and usable("pre_sleep_4h", "stress"))
 
         quarter_hr = [
@@ -952,10 +975,9 @@ def build_monitoring_quality_index(
             and row.get("unsupported_multi_day_gap", 0) == 0
             and row.get("next_sleep_start_known", 0) == 1
             and row["sleep_hr_usable"] == 1
-            and row["sleep_stress_numeric_usable"] == 1
+            and row["sleep_stress_usable"] == 1
             and row["wake_hr_usable"] == 1
-            and row["wake_stress_numeric_usable"] == 1
-            and row["pre_sleep_4h_usable"] == 1
+            and row["wake_stress_usable"] == 1
         )
         rows.append(row)
 
@@ -1781,9 +1803,9 @@ def build_monitoring_quality_summary_markdown(
 
     usable_columns = [
         "sleep_hr_usable",
-        "sleep_stress_numeric_usable",
+        "sleep_stress_usable",
         "wake_hr_usable",
-        "wake_stress_numeric_usable",
+        "wake_stress_usable",
         "pre_sleep_4h_usable",
         "wake_quarters_usable",
     ]
@@ -1811,6 +1833,12 @@ def build_monitoring_quality_summary_markdown(
             "- Longer gaps are marked unsupported instead of being expanded into fake analysis days.",
             "- Sleep duration plausibility uses `2..16` hours; wake duration plausibility uses `6..30` hours.",
             "- Quality prioritizes coverage fraction, largest gap duration, boundary coverage, and known/missing boundaries.",
+            "- Baseline usable flags allow max gaps up to `360` minutes; analysts can still create stricter subsets such as `*_max_gap_minutes <= 180`.",
+            "- `modeling_recovery_v0_eligible` is a baseline row-level recovery modeling flag requiring plausible sleep/wake windows and usable whole sleep/wake HR/stress.",
+            "- `pre_sleep_4h_usable` remains an optional pre-sleep anchored-feature diagnostic and is not a hard baseline eligibility requirement.",
+            "- Stress quality coverage counts semantic stress observations: raw `0..100` plus raw `-2` only when same-minute valid HR confirms activity.",
+            "- Numeric stress feature statistics still use only raw `0..100` values.",
+            "- Raw stress `-1` and raw `-2` without same-minute valid HR remain unmeasurable for stress coverage.",
             "- Raw stress `-2` is split into HR-confirmed active proxy and no-HR unmeasurable diagnostics; only same-minute valid HR confirms activity.",
             "",
         ]
@@ -1897,6 +1925,11 @@ def build_monitoring_features_full_summary_markdown(
             "",
             "- Row-level filtering lives in `data/processed/monitoring_quality_index.parquet`.",
             "- Join on `analysis_window_id` before modeling or interpreting window-heavy features.",
+            "- `modeling_recovery_v0_eligible` is a baseline row-level flag for plausible sleep-wake-next-sleep windows with usable sleep and whole-wake HR/stress.",
+            "- `pre_sleep_4h_usable` is optional for baseline eligibility; filter on it for stricter pre-sleep sensitivity analyses.",
+            "- Baseline usable flags allow max gaps up to `360` minutes; use `*_max_gap_minutes <= 180` for stricter gap sensitivity subsets.",
+            "- In the quality index, stress coverage and stress usable flags count raw `0..100` plus raw `-2` only when same-minute valid HR confirms activity.",
+            "- Numeric stress feature statistics in this table still use only raw `0..100` values.",
             "- The cleaned feature tables intentionally avoid duplicating quality diagnostics as candidate predictors.",
             "",
         ]
@@ -1935,6 +1968,9 @@ def build_monitoring_core_features_summary_markdown(core_df: pd.DataFrame, quali
             "",
             "- Core keeps a small set of whole sleep/wake summaries, simplified stress states, wake HR zones, trends, wake quarters, pre-sleep recovery, and sleep-wake contrasts.",
             "- Core excludes quality/debug columns. Join `monitoring_quality_index.parquet` on `analysis_window_id` for filtering.",
+            "- Baseline recovery eligibility does not require `pre_sleep_4h_usable`; use that flag only for stricter pre-sleep sensitivity analyses.",
+            "- Baseline usable flags allow max gaps up to `360` minutes, while `*_max_gap_minutes <= 180` remains available as a stricter subset rule.",
+            "- Quality stress coverage counts raw `0..100` plus raw `-2` only when same-minute valid HR confirms activity; numeric stress features remain restricted to raw `0..100`.",
             "- Anchored window zoo, endpoint diagnostics, raw status fractions, coverage metrics, and activation/spectral features are absent from core v0.",
             "",
             "## Stress State Semantics",

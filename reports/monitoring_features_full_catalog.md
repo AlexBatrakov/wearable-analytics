@@ -106,5 +106,8 @@ These are non-constant, not-mostly-missing catalog candidates, intended as a sta
 - Raw stress `-1` is excluded from feature-state denominators and remains a quality diagnostic.
 - Raw stress `-2` appears in feature-state fractions only through `stress_frac_active` when same-minute valid HR confirms activity.
 - Raw stress `-2` without same-minute valid HR remains an unmeasurable/status diagnostic, not activity.
+- When this table is joined to `monitoring_quality_index.parquet`, stress coverage counts raw `0..100` plus HR-confirmed raw `-2`; raw `-2` without valid HR remains unobserved for stress quality.
+- Baseline recovery eligibility does not require `pre_sleep_4h_usable`; filter on that quality flag for stricter pre-sleep sensitivity analyses.
+- Baseline usable flags allow max gaps up to `360` minutes; analysts can still filter `*_max_gap_minutes <= 180` for stricter gap sensitivity subsets.
 - Episode no-event cases are represented with `has_event = 0`, zero duration summaries, and undefined time-to-event fields.
 - Candidate model feature flags are first-pass guidance only; Modeling v2 should still apply leakage-safe feature selection.

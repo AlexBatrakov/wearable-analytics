@@ -11,7 +11,7 @@
 - Rows: `498`
 - Columns: `93`
 - Quality index rows: `498`
-- Recovery modeling v0 eligible rows: `374`
+- Recovery modeling v0 eligible rows: `408`
 
 ## Core Feature Family Counts
 
@@ -29,6 +29,9 @@
 
 - Core keeps a small set of whole sleep/wake summaries, simplified stress states, wake HR zones, trends, wake quarters, pre-sleep recovery, and sleep-wake contrasts.
 - Core excludes quality/debug columns. Join `monitoring_quality_index.parquet` on `analysis_window_id` for filtering.
+- Baseline recovery eligibility does not require `pre_sleep_4h_usable`; use that flag only for stricter pre-sleep sensitivity analyses.
+- Baseline usable flags allow max gaps up to `360` minutes, while `*_max_gap_minutes <= 180` remains available as a stricter subset rule.
+- Quality stress coverage counts raw `0..100` plus raw `-2` only when same-minute valid HR confirms activity; numeric stress features remain restricted to raw `0..100`.
 - Anchored window zoo, endpoint diagnostics, raw status fractions, coverage metrics, and activation/spectral features are absent from core v0.
 
 ## Stress State Semantics
