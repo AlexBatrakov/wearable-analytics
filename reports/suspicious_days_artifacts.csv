@@ -29,6 +29,7 @@ calendarDate,quality_score,day_quality_label_strict,day_quality_label_loose,corr
 2024-01-11,4,good,good,False,True,True,True,True,True,True,False,False,True,86400,63,45,95,45,70,60,has_sleep
 2024-09-25,4,good,good,False,True,True,True,True,True,True,False,False,True,86400,260,45,100,48,7,5,has_sleep
 2025-11-26,4,good,good,False,True,True,True,True,True,True,False,False,True,86400,3409,60,157,42,34,5,has_sleep
+2026-04-26,4,good,good,False,True,True,True,True,True,True,False,False,True,86400,945,52,115,47,80,11,has_sleep
 2023-06-13,4,good,good,False,True,True,True,True,False,True,True,True,True,86340,10318,40,152,42,19,,has_bodybattery_end
 2025-08-23,4,good,good,False,True,True,True,True,True,True,False,False,True,86340,1671,50,112,41,26,5,has_sleep
 2025-11-14,4,good,good,False,True,True,True,True,True,True,False,False,True,86340,1704,66,148,43,37,7,has_sleep
@@ -36,6 +37,7 @@ calendarDate,quality_score,day_quality_label_strict,day_quality_label_loose,corr
 2025-12-31,4,good,good,False,True,True,True,True,True,True,False,False,True,86220,3017,62,132,57,87,19,has_sleep
 2023-06-18,4,good,good,False,True,True,True,True,False,True,True,True,True,86160,8333,39,183,43,22,,has_bodybattery_end
 2023-10-22,4,good,good,False,True,True,True,True,True,True,False,False,True,86160,4372,53,170,48,9,5,has_sleep
+2026-05-12,4,good,good,False,True,True,True,True,True,True,False,False,True,86160,4275,46,142,49,51,6,has_sleep
 2025-11-13,4,good,good,False,True,True,True,True,False,True,True,True,True,86100,6271,38,165,42,10,,has_bodybattery_end
 2024-04-04,4,good,good,False,True,True,True,True,True,True,False,False,True,86040,7450,51,126,54,49,5,has_sleep
 2024-08-14,4,good,good,False,True,True,True,True,False,True,True,True,True,86040,2428,44,118,46,5,,has_bodybattery_end
@@ -47,5 +49,3 @@ calendarDate,quality_score,day_quality_label_strict,day_quality_label_loose,corr
 2024-05-15,4,good,good,False,True,True,True,True,False,True,True,True,True,85740,14644,45,171,46,5,,has_bodybattery_end
 2024-09-22,4,good,good,False,True,True,True,True,True,True,False,False,True,85740,12320,46,139,47,5,10,has_sleep
 2024-09-24,4,good,good,False,True,True,True,True,True,True,False,False,True,85740,13818,41,163,47,17,7,has_sleep
-2023-06-01,4,good,good,False,True,True,True,True,False,True,True,True,True,85680,15278,39,141,45,30,,has_bodybattery_end
-2023-07-11,4,good,good,False,True,True,True,True,True,True,False,False,True,85680,10437,40,127,43,50,22,has_sleep

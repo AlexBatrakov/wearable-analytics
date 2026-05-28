@@ -41,13 +41,13 @@ Constant columns are diagnostics. Some are constant only because they have very 
 
 | column | family | missing_pct | n_unique | caution |
 | --- | --- | --- | --- | --- |
-| wake_hr_frac_above_mhr | HR MHR zones | 5.622489959839357 | 1 | constant among non-null values; sparse or rare-event style feature |
-| wake_stress_active_has_event | episodes/state structure | 5.622489959839357 | 1 | constant among non-null values |
-| sleep_frac_hr_zone2_plus_stress_high | HR/stress coupling | 4.819277108433735 | 1 | constant among non-null values; sparse or rare-event style feature; requires paired valid HR and stress minutes |
-| sleep_hr_frac_above_mhr | HR MHR zones | 4.819277108433735 | 1 | constant among non-null values; sparse or rare-event style feature |
-| sleep_hr_frac_zone3 | HR MHR zones | 4.819277108433735 | 1 | constant among non-null values; sparse or rare-event style feature |
-| sleep_hr_frac_zone4 | HR MHR zones | 4.819277108433735 | 1 | constant among non-null values; sparse or rare-event style feature |
-| sleep_hr_frac_zone5 | HR MHR zones | 4.819277108433735 | 1 | constant among non-null values; sparse or rare-event style feature |
+| sleep_frac_hr_zone2_plus_stress_high | HR/stress coupling | 5.772495755517826 | 1 | constant among non-null values; sparse or rare-event style feature; requires paired valid HR and stress minutes |
+| sleep_hr_frac_above_mhr | HR MHR zones | 5.772495755517826 | 1 | constant among non-null values; sparse or rare-event style feature |
+| sleep_hr_frac_zone3 | HR MHR zones | 5.772495755517826 | 1 | constant among non-null values; sparse or rare-event style feature |
+| sleep_hr_frac_zone4 | HR MHR zones | 5.772495755517826 | 1 | constant among non-null values; sparse or rare-event style feature |
+| sleep_hr_frac_zone5 | HR MHR zones | 5.772495755517826 | 1 | constant among non-null values; sparse or rare-event style feature |
+| wake_hr_frac_above_mhr | HR MHR zones | 5.432937181663837 | 1 | constant among non-null values; sparse or rare-event style feature |
+| wake_stress_active_has_event | episodes/state structure | 5.432937181663837 | 1 | constant among non-null values |
 
 ## Mostly Missing Columns
 
@@ -55,7 +55,7 @@ Columns below use `missing_pct >= 90` as the mostly-missing threshold.
 
 | column | family | missing_pct | non_null_count | n_unique |
 | --- | --- | --- | --- | --- |
-| sleep_hr_zone1_plus_time_to_first_minutes | episodes/state structure | 95.98393574297188 | 20 | 20 |
+| sleep_hr_zone1_plus_time_to_first_minutes | episodes/state structure | 95.75551782682513 | 25 | 25 |
 
 ## Useful Starting Columns By Family
 
@@ -63,36 +63,36 @@ These are non-constant, not-mostly-missing catalog candidates, intended as a sta
 
 | column | family | signal | phase | window | missing_pct |
 | --- | --- | --- | --- | --- | --- |
-| sleep_hr_frac_below_zone1 | HR MHR zones | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_frac_zone1 | HR MHR zones | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_frac_zone2 | HR MHR zones | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_frac_hr_below_zone1_stress_high | HR/stress coupling | hr+stress | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_diff_stress_diff_corr | HR/stress coupling | hr+stress | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_stress_corr | HR/stress coupling | hr+stress | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_histogram_entropy | distribution/shape | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_iqr | distribution/shape | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_kurtosis | distribution/shape | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_zone1_plus_episode_count | episodes/state structure | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_zone1_plus_fragmentation_index | episodes/state structure | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_zone1_plus_has_event | episodes/state structure | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_time_to_min_minutes | recovery/deactivation | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_stress_time_to_min_minutes | recovery/deactivation | stress | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_q1_minus_q4 | recovery/deactivation | hr | sleep | sleep_phase | 5.020080321285141 |
-| sleep_q1_hr_mean | relative windows | hr | sleep | sleep_q1 | 4.819277108433735 |
-| sleep_q1_hr_p90 | relative windows | hr | sleep | sleep_q1 | 4.819277108433735 |
-| sleep_q1_hr_std | relative windows | hr | sleep | sleep_q1 | 4.819277108433735 |
-| hr_wake_mean_minus_sleep_mean | sleep-wake contrast | hr | sleep-wake | not_windowed | 10.441767068273093 |
-| hr_wake_median_minus_sleep_median | sleep-wake contrast | hr | sleep-wake | not_windowed | 10.441767068273093 |
-| hr_wake_p90_minus_sleep_p90 | sleep-wake contrast | hr | sleep-wake | not_windowed | 10.441767068273093 |
-| sleep_stress_frac_active | stress state fractions | stress | sleep | sleep_phase | 4.819277108433735 |
-| sleep_stress_frac_high | stress state fractions | stress | sleep | sleep_phase | 4.819277108433735 |
-| sleep_stress_frac_low | stress state fractions | stress | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_slope_per_hour | trends | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_trend_r2 | trends | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_stress_slope_per_hour | trends | stress | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_max_abs_jump | variability/gaps | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_mean_abs_diff | variability/gaps | hr | sleep | sleep_phase | 4.819277108433735 |
-| sleep_hr_median_abs_diff | variability/gaps | hr | sleep | sleep_phase | 4.819277108433735 |
+| wake_hr_frac_below_zone1 | HR MHR zones | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_frac_zone1 | HR MHR zones | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_frac_zone2 | HR MHR zones | hr | wake | wake_phase | 5.432937181663837 |
+| wake_frac_hr_below_zone1_stress_high | HR/stress coupling | hr+stress | wake | wake_phase | 5.602716468590832 |
+| wake_frac_hr_zone2_plus_stress_high | HR/stress coupling | hr+stress | wake | wake_phase | 5.602716468590832 |
+| wake_hr_diff_stress_diff_corr | HR/stress coupling | hr+stress | wake | wake_phase | 5.602716468590832 |
+| wake_hr_histogram_entropy | distribution/shape | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_iqr | distribution/shape | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_kurtosis | distribution/shape | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_zone2_plus_episode_count | episodes/state structure | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_zone2_plus_fragmentation_index | episodes/state structure | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_zone2_plus_has_event | episodes/state structure | hr | wake | wake_phase | 5.432937181663837 |
+| sleep_hr_time_to_min_minutes | recovery/deactivation | hr | sleep | sleep_phase | 5.772495755517826 |
+| sleep_stress_time_to_min_minutes | recovery/deactivation | stress | sleep | sleep_phase | 5.772495755517826 |
+| sleep_hr_q1_minus_q4 | recovery/deactivation | hr | sleep | sleep_phase | 5.942275042444821 |
+| sleep_q1_hr_mean | relative windows | hr | sleep | sleep_q1 | 5.772495755517826 |
+| sleep_q1_hr_p90 | relative windows | hr | sleep | sleep_q1 | 5.772495755517826 |
+| sleep_q1_hr_std | relative windows | hr | sleep | sleep_q1 | 5.772495755517826 |
+| hr_wake_mean_minus_sleep_mean | sleep-wake contrast | hr | sleep-wake | not_windowed | 11.205432937181664 |
+| hr_wake_median_minus_sleep_median | sleep-wake contrast | hr | sleep-wake | not_windowed | 11.205432937181664 |
+| hr_wake_p90_minus_sleep_p90 | sleep-wake contrast | hr | sleep-wake | not_windowed | 11.205432937181664 |
+| wake_stress_frac_active | stress state fractions | stress | wake | wake_phase | 5.432937181663837 |
+| wake_stress_frac_high | stress state fractions | stress | wake | wake_phase | 5.432937181663837 |
+| wake_stress_frac_low | stress state fractions | stress | wake | wake_phase | 5.432937181663837 |
+| wake_hr_slope_per_hour | trends | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_trend_r2 | trends | hr | wake | wake_phase | 5.432937181663837 |
+| wake_stress_slope_per_hour | trends | stress | wake | wake_phase | 5.432937181663837 |
+| wake_hr_max_abs_jump | variability/gaps | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_mean_abs_diff | variability/gaps | hr | wake | wake_phase | 5.432937181663837 |
+| wake_hr_median_abs_diff | variability/gaps | hr | wake | wake_phase | 5.432937181663837 |
 
 ## Entropy Policy
 

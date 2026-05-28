@@ -8,51 +8,51 @@ This report summarizes the compact quality layer used before feature selection. 
 
 ## Analysis Rows
 
-- Analysis rows: `498`
-- Rows with observed next sleep boundary: `446`
-- Rows with synthetic split timestamp populated: `48`
-- Unsupported multi-day gap rows: `27`
-- Rows plausible under `2..16h` sleep and `6..30h` wake bounds: `446`
-- Rows eligible for recovery modeling v0: `408`
+- Analysis rows: `589`
+- Rows with observed next sleep boundary: `524`
+- Rows with synthetic split timestamp populated: `66`
+- Unsupported multi-day gap rows: `31`
+- Rows plausible under `2..16h` sleep and `6..30h` wake bounds: `524`
+- Rows eligible for recovery modeling v0: `472`
 - Max accepted/split wake duration: `26.87` hours
 - Max raw observed wake duration: `3830.30` hours
 
 ## Next Sleep Status
 
-- observed_within_cutoff: `421`
-- missing_after_cutoff: `76`
+- observed_within_cutoff: `490`
+- missing_after_cutoff: `98`
 - no_following_observed_sleep: `1`
 
 ## Boundary Confidence
 
-- observed: `421`
-- synthetic_split: `48`
-- unsupported_multi_day_gap: `27`
+- observed: `490`
+- synthetic_split: `66`
+- unsupported_multi_day_gap: `31`
 - observed_late_within_duration: `1`
 - missing_next_sleep: `1`
 
 ## Wake End Source
 
-- observed_next_sleep: `421`
-- unsupported_multi_day_gap: `27`
-- synthetic_midpoint_split: `24`
-- observed_next_sleep_after_split: `24`
+- observed_next_sleep: `490`
+- synthetic_midpoint_split: `33`
+- observed_next_sleep_after_split: `33`
+- unsupported_multi_day_gap: `31`
 - observed_next_sleep_after_cutoff_within_duration: `1`
 - no_following_observed_sleep: `1`
 
 ## Usable Flags
 
-- `sleep_hr_usable`: `471`
-- `sleep_stress_usable`: `472`
-- `wake_hr_usable`: `423`
-- `wake_stress_usable`: `423`
-- `pre_sleep_4h_usable`: `428`
-- `wake_quarters_usable`: `391`
+- `sleep_hr_usable`: `552`
+- `sleep_stress_usable`: `553`
+- `wake_hr_usable`: `491`
+- `wake_stress_usable`: `491`
+- `pre_sleep_4h_usable`: `498`
+- `wake_quarters_usable`: `454`
 
 ## Internal Quality Windows
 
 Long-format quality-window diagnostics are computed internally and are not persisted by default.
-- Internal rows evaluated: `6,540`
+- Internal rows evaluated: `7,730`
 - Logical windows evaluated: `pre_sleep_4h, sleep, wake, wake_q1, wake_q2, wake_q3, wake_q4`
 
 ## Quality Policy

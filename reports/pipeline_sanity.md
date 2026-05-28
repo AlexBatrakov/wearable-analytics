@@ -9,7 +9,7 @@ The Garmin source schema contains overlapping summaries that can appear duplicat
 
 ## Validation result used in Stage 1
 
-On the Stage 1 aggregated dataset (580 rows):
+On the Stage 1 aggregated dataset (677 rows):
 
 - stress_duration_matches_allDayStress_TOTAL: 100.00% true
 - stress_awake_matches_allDayStress_AWAKE: 100.00% true

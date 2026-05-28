@@ -12,7 +12,7 @@ For a concise portfolio narrative built from the final Stage 2 outputs, start wi
 3. `notebooks/03_eda_distributions.ipynb` (Stage 2.2)
 4. `notebooks/04_eda_relationships.ipynb` (Stage 2.3)
 
-## Current status (2026-03-02)
+## Current status (2026-05-28)
 
 - **Stage 2.0 / `01_eda_prepare.ipynb`**: analysis contract + canonical slices completed, with coverage-aware overview tables/visuals (including a GitHub-style daily coverage/quality calendar heatmap)
 - **Stage 2.1 / `02_eda_timeseries.ipynb`**: curated subsystem timelines completed (activity, stress, heart, Body Battery, sleep timing/duration/stages, respiration, SpO2)
@@ -64,17 +64,17 @@ Current plots include:
 - Reuses the same figure export policy (`SAVE_FIGS` + local `reports/figures/` outputs)
 
 Current snapshot highlights:
-- `totalSteps` is highly heterogeneous (p10≈821, median≈6389, p90≈14980), confirming mixed low-activity and active-day regimes.
+- `totalSteps` is highly heterogeneous (p10≈902, median≈6097, p90≈14530), confirming mixed low-activity and active-day regimes.
 - `step_length_m` centers around ~0.78 m/step with asymmetric tails, consistent with mostly walking plus smaller faster-gait periods.
-- `floorsAscendedInMeters` shows a meaningful mass at `0` plus a broad main body around ~20–45 m, so climb activity is intermittent rather than smooth day-to-day.
+- `floorsAscendedInMeters` shows a meaningful mass at `0` plus a broad main body around ~10-49 m, so climb activity is intermittent rather than smooth day-to-day.
 - Day-of-week segmentation surfaces stable patterns:
-  - Saturday is the most active day (`active_hours` median ≈1.35h; `totalSteps` median ≈8079).
-  - Sunday median steps are markedly lower (~2822), and Sunday active time is also the lowest (`active_hours` median ≈0.50h).
-  - Tuesday median awake stress is the highest (~58), consistent with known weekly context.
-- Sleep duration by sleep-onset weekday is shortest on Monday onset (~7.88h) and longest on Saturday onset (~8.9h).
+  - Saturday is the most active day (`active_hours` median ≈1.29h; `totalSteps` median ≈7555).
+  - Sunday median steps are markedly lower (~2085), and Sunday active time is also the lowest (`active_hours` median ≈0.44h).
+  - Tuesday median awake stress is the highest (~58.5), consistent with known weekly context.
+- Sleep duration by sleep-onset weekday is shortest on Monday onset (~8.0h) and longest on Friday/Saturday onset (~9.0h).
 - Sleep-quality buckets show a coherent gradient:
-  - median sleep duration rises from poor (~5.4h) to excellent (~8.9h),
-  - median `avgSleepStress` declines from poor (~24.16) to excellent (~11.37).
+  - median sleep duration rises from poor (~6.3h) to excellent (~8.9h),
+  - median `avgSleepStress` declines from poor (~27.63) to excellent (~11.36).
 
 ### 2.3 Relationships notebook
 
@@ -93,6 +93,7 @@ Current status after Stage 2 closeout:
 - curated hero figures have been promoted into `docs/img/`
 - Stage 2 findings have been summarized in the root `README.md`
 - the recruiter-facing narrative now lives in [the case study](case_study.md)
+- Stage 3 validation/modeling results are summarized separately in [Stage 3](stage3.md)
 
 Optional next additions:
 - feature set formalization for modeling-ready datasets

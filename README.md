@@ -31,8 +31,8 @@ If you open only one file after this page, start with [the case study](docs/case
 
 ## Headline Findings
 
-- The dataset spans **580 daily rows** from **2023-05-26 to 2026-02-05**, with explicit quality-aware filtering before analysis.
-- About **90.5%** of days are `strict good`, which makes the retained EDA slices analytically useful without hiding real-world coverage gaps.
+- The dataset spans **677 daily rows** from **2023-05-26 to 2026-05-18**, with explicit quality-aware filtering before analysis.
+- About **91.1%** of days are `strict good`, which makes the retained EDA slices analytically useful without hiding real-world coverage gaps.
 - Weekly segmentation reveals stable routines: **Saturday** is the most active day, **Sunday** the least active, and **Tuesday** shows the highest median awake stress.
 - Higher **daytime stress** is associated with worse **next-night recovery**, supporting a day-to-night carryover story rather than same-row coincidence only.
 - **Sleep score** follows an optimum-duration pattern: mid-range sleep durations score best, while both shorter and longer nights tend to underperform.
@@ -61,17 +61,17 @@ If you open only one file after this page, start with [the case study](docs/case
 
 ## Results Snapshot
 
-- rows: **580**
-- date range: **2023-05-26 to 2026-02-05**
-- strict labels: **good 90.52%, partial 3.79%, bad 5.69%**
-- loose labels: **good 93.45%, partial 0.86%, bad 5.69%**
-- corrupted stress-only days: **21 (3.62%)**
+- rows: **677**
+- date range: **2023-05-26 to 2026-05-18**
+- strict labels: **good 91.14%, partial 3.69%, bad 5.17%**
+- loose labels: **good 94.09%, partial 0.74%, bad 5.17%**
+- corrupted stress-only days: **21 (3.10%)**
 
 ## Stage 3 Snapshot
 
 - Primary task: predict whether `next-night sleepRecoveryScore < 75` with contiguous time-ordered splits.
-- Best interpretable model family: sparse logistic variants using compact daytime stress/heart-rate/body-battery context.
-- Typical test performance range: balanced accuracy **~0.64**, ROC-AUC **~0.64-0.68**, PR-AUC **~0.35-0.40**.
+- Best interpretable model family: sparse logistic variants using compact daytime stress and heart-rate context.
+- Current selected test result: balanced accuracy **~0.68**, ROC-AUC **~0.71**, PR-AUC **~0.60**, F1 **~0.62**.
 - Statistical validation supports key directional findings (for example, `daytime awake stress -> lower next-night recovery`).
 
 ## Technical Appendix / Deep Dive

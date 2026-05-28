@@ -8,10 +8,10 @@
 
 ## Shape
 
-- Rows: `498`
+- Rows: `589`
 - Columns: `93`
-- Quality index rows: `498`
-- Recovery modeling v0 eligible rows: `408`
+- Quality index rows: `589`
+- Recovery modeling v0 eligible rows: `472`
 
 ## Core Feature Family Counts
 

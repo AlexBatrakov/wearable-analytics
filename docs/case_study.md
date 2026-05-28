@@ -47,13 +47,13 @@ This matters because the repo is not just about “making charts”; it shows a 
 
 ## Quality and Trustworthiness
 
-The analysis-ready dataset contains **580 daily rows** spanning **2023-05-26 to 2026-02-05**. Quality is not treated as an afterthought. Instead, each day is labeled under strict and loose readiness rules based on the availability of core signals such as steps, heart rate, stress duration, sleep coverage, and Body Battery end-of-day values.
+The analysis-ready dataset contains **677 daily rows** spanning **2023-05-26 to 2026-05-18**. Quality is not treated as an afterthought. Instead, each day is labeled under strict and loose readiness rules based on the availability of core signals such as steps, heart rate, stress duration, sleep coverage, and Body Battery end-of-day values.
 
 Headline quality numbers:
-- **Strict good**: `525 / 580` days (`90.52%`)
-- **Strict partial**: `22 / 580` days (`3.79%`)
-- **Strict bad**: `33 / 580` days (`5.69%`)
-- **Corrupted stress-only days**: `21` dates (`3.62%`)
+- **Strict good**: `617 / 677` days (`91.14%`)
+- **Strict partial**: `25 / 677` days (`3.69%`)
+- **Strict bad**: `35 / 677` days (`5.17%`)
+- **Corrupted stress-only days**: `21` dates (`3.10%`)
 
 These labels are important because they separate genuine behavioral patterns from device artifacts. For example, some suspicious dates are truly corrupted stress-only runs, while others are partial but still plausible days where the watch likely ran out of battery before end-of-day.
 
@@ -65,13 +65,13 @@ These labels are important because they separate genuine behavioral patterns fro
 
 ### Behavioral Rhythms
 
-The day-of-week segmentation shows that the dataset contains stable routines rather than pure noise. Saturday is the most active day in the strict-quality slice, with a median of about **8,079 steps**, while Sunday drops to roughly **2,822 steps**. This pattern is mirrored by `active_hours`, which peaks on Saturday and is lowest on Sunday. That consistency matters because it shows the signal is not just a quirk of one metric.
+The day-of-week segmentation shows that the dataset contains stable routines rather than pure noise. Saturday is the most active day in the strict-quality slice, with a median of about **7,555 steps**, while Sunday drops to roughly **2,085 steps**. This pattern is mirrored by `active_hours`, which peaks on Saturday and is lowest on Sunday. That consistency matters because it shows the signal is not just a quirk of one metric.
 
 ![Median steps by weekday](img/steps_by_weekday.png)
 
 *Behavioral rhythm: median steps are highest on Saturday and lowest on Sunday, showing a stable weekly routine rather than random activity variation.*
 
-Stress also has a weekly rhythm. Tuesday has the highest median awake stress in the strict-quality slice, at roughly **58**, which is materially above the calmer weekdays. This is a useful validation that the project can recover interpretable weekly structure from noisy wearable summaries rather than only producing generic distributions.
+Stress also has a weekly rhythm. Tuesday has the highest median awake stress in the strict-quality slice, at roughly **58.5**, which is above the calmer weekdays. This is a useful validation that the project can recover interpretable weekly structure from noisy wearable summaries rather than only producing generic distributions.
 
 ![Awake stress by weekday](img/seg_dow_awake_stress_box.png)
 
@@ -92,13 +92,13 @@ Sleep quality is structured by both **duration** and **timing**. Duration does n
   </tr>
 </table>
 
-The segmented sleep buckets tell the same story from a different angle. Median sleep duration rises from roughly **5.4 hours** in poor-quality nights to about **8.9 hours** in excellent nights, which shows that duration matters, but only within a plausible range rather than at the extreme long end.
+The segmented sleep buckets tell the same story from a different angle. Median sleep duration rises from roughly **6.3 hours** in poor-quality nights to about **8.9 hours** in excellent nights, which shows that duration matters, but only within a plausible range rather than at the extreme long end.
 
 ![Sleep duration by quality bucket](img/seg_sleep_bucket_sleep_hours_box.png)
 
 *Sleep quality buckets: better-scoring nights are clearly longer on average, but the relationship is structured rather than linear.*
 
-Sleep stress is another strong driver. `sleepAverageStressLevel` is negatively associated with `sleepOverallScore` with a Pearson correlation of about **-0.60**, making it one of the clearest degraders of sleep quality in the whole project. This relationship is stronger and cleaner than many of the daytime activity effects.
+Sleep stress is another strong driver. `sleepAverageStressLevel` is negatively associated with `sleepOverallScore` with a Pearson correlation of about **-0.64**, making it one of the clearest degraders of sleep quality in the whole project. This relationship is stronger and cleaner than many of the daytime activity effects.
 
 ![Sleep stress vs sleep score](img/rel_sleep_avg_stress_level_vs_sleep_score.png)
 
@@ -106,13 +106,13 @@ Sleep stress is another strong driver. `sleepAverageStressLevel` is negatively a
 
 ### Day-to-Night Carryover
 
-The most important directional relationship in the project is a carryover effect from daytime stress into the following night. `awakeAverageStressLevel (D)` is negatively associated with `next-night sleepRecoveryScore (D+1)` (Pearson about **-0.31**, `n≈464`). The broader pattern is not just about the average stress level either: days with a larger high-stress share tend to precede worse next-night recovery, while days with a larger rest share tend to precede better recovery.
+The most important directional relationship in the project is a carryover effect from daytime stress into the following night. `awakeAverageStressLevel (D)` is negatively associated with `next-night sleepRecoveryScore (D+1)` (Pearson about **-0.34**, Spearman about **-0.32**, `n=543`). The broader pattern is not just about the average stress level either: days with a larger high-stress share tend to precede worse next-night recovery, while days with a larger rest share tend to precede better recovery.
 
 ![Daytime stress vs next-night recovery](img/awake_stress_to_nextsleep_recovery.png)
 
 *Day-to-night carryover: higher daytime stress is associated with weaker next-night recovery, making this one of the clearest directional findings in the repository.*
 
-The same carryover appears in the next-night asleep stress signal. `awakeAverageStressLevel (D)` is positively associated with `sleepAverageStressLevel (D+1)` with a Pearson correlation of about **+0.28**. This is weaker than the recovery effect, but it supports the same interpretation: stress does not stay confined to the calendar day where it was recorded.
+The same carryover appears in the next-night asleep stress signal. `awakeAverageStressLevel (D)` is positively associated with `sleepAverageStressLevel (D+1)` with a Pearson correlation of about **+0.31** (`n=529`). This is weaker than the recovery effect, but it supports the same interpretation: stress does not stay confined to the calendar day where it was recorded.
 
 ![Daytime stress vs next-night asleep stress](img/rel_awake_stress_to_nextsleep_asleep_stress.png)
 
@@ -135,22 +135,21 @@ The current headline modeling task is:
 
 This threshold is intentionally a compromise. A stricter cutoff like `< 70` makes the positive class too rare for a clean baseline story, while a median-style split near `79/80` loses too much of the “bad night” interpretation. With the current time-ordered `60/20/20` split, `< 75` produces a usable but still meaningfully adverse class.
 
-The best interpretable models are sparse logistic variants built on a very small set of daytime features, especially:
+The best interpretable models are sparse logistic variants built on a very small set of daytime features. In the refreshed run, the selected sparse L1 model uses:
 - `awakeAverageStressLevel`
-- `maxHeartRate`
-- `bodyBatteryLowest`
+- `restingHeartRate`
 
-On the current test split, these sparse classifiers land around:
-- balanced accuracy: **~0.64**
-- ROC-AUC: **~0.64-0.65**
-- PR-AUC: **~0.35**
-- F1: **~0.46**
+On the current test split, this classifier lands around:
+- balanced accuracy: **~0.68**
+- ROC-AUC: **~0.71**
+- PR-AUC: **~0.60**
+- F1: **~0.62**
 
 This is not a strong production predictor, but it is a real predictive signal on noisy single-subject wearable data. The practical interpretation is that daytime signals can act as a moderate **risk flag** for poor next-night recovery, even if they are not precise enough to support exact score prediction.
 
-A nonlinear benchmark (`HistGradientBoostingClassifier`) performs slightly better on ranking metrics, reaching roughly **ROC-AUC ~0.68** and **PR-AUC ~0.40**, but the sparse logistic model remains easier to explain and defend in a portfolio setting.
+The refreshed nonlinear benchmarks are useful checks, but they no longer beat the selected sparse classifier on the headline test metrics. That keeps the modeling story simpler: the most defensible public result is also the most interpretable one.
 
-Just as importantly, Stage 3 keeps a negative result instead of hiding it: current day-level awake aggregates do **not** beat a simple median baseline when asked to predict exact next-night numeric targets (`sleepRecoveryScore`, `sleepOverallScore`, `sleepQualityScore`, or `avgSleepStress`). That is analytically useful because it draws a clear boundary between what the present feature layer can and cannot support.
+Just as importantly, Stage 3 keeps a limited result instead of overstating it: current day-level awake aggregates show only weak numeric regression value. Tree models produce small positive `R^2` for `avgSleepStress` and `sleepRecoveryScore`, while other score targets remain near or below a simple median baseline. That is analytically useful because it draws a clear boundary between coarse risk classification and exact score prediction.
 
 Stage 3 also adds a lightweight validation layer for the claims that matter most to the public narrative. Three of the strongest observational findings hold up under simple statistical checks: Saturday activity is significantly higher than Sunday activity, higher daytime awake stress is associated with lower next-night recovery, and higher daytime awake stress is also associated with higher next-night sleep stress. A fourth descriptive observation, that Tuesday is the highest-stress weekday, remains weaker and is better treated as an exploratory weekly-rhythm note than as a validated headline result.
 

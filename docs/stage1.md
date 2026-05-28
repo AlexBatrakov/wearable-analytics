@@ -40,11 +40,11 @@ Quality:
 
 ## Current Stage 1 metrics
 
-- rows: **580**
-- date range: **2023-05-26 to 2026-02-05**
-- strict labels: **good 90.52%, partial 3.79%, bad 5.69%**
-- loose labels: **good 93.45%, partial 0.86%, bad 5.69%**
-- corrupted stress-only days: **21 (3.62%)**
+- rows: **677**
+- date range: **2023-05-26 to 2026-05-18**
+- strict labels: **good 91.14%, partial 3.69%, bad 5.17%**
+- loose labels: **good 94.09%, partial 0.74%, bad 5.17%**
+- corrupted stress-only days: **21 (3.10%)**
 
 ## Interpretation
 
@@ -73,12 +73,12 @@ Quick sensitivity checks (strict labels) used to validate that defaults are reas
 
 | setting | good | partial | bad | note |
 | --- | --- | --- | --- | --- |
-| `strict_min_score=4` (current) | 525 | 22 | 33 | balanced default |
-| `strict_min_score=5` | 438 | 109 | 33 | too strict for current coverage |
-| `stress_any_hours=6` (current) | 525 | 22 | 33 | balanced default |
-| `stress_any_hours=12` | 509 | 35 | 36 | noticeably harsher |
-| `steps_min=50` (current) | 525 | 22 | 33 | low sensitivity in current data |
-| `steps_min=200` | 523 | 24 | 33 | only minor shift |
+| `strict_min_score=4` (current) | 617 | 25 | 35 | balanced default |
+| `strict_min_score=5` | 512 | 130 | 35 | too strict for current coverage |
+| `stress_any_hours=6` (current) | 617 | 25 | 35 | balanced default |
+| `stress_any_hours=12` | 598 | 41 | 38 | noticeably harsher |
+| `steps_min=50` (current) | 617 | 25 | 35 | low sensitivity in current data |
+| `steps_min=200` | 615 | 27 | 35 | only minor shift |
 
 ## Sanitize notes
 
