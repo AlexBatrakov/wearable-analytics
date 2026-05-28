@@ -19,6 +19,7 @@ PYTHONPATH=src python -m garmin_analytics --help
 - `data/` is gitignored and must remain local.
 - Timeseries figures are exported locally to `reports/figures/timeseries/` and should not be committed.
 - SQL query snapshots are exported locally to `reports/sql/duckdb/` and should not be committed.
+- Monitoring parquet outputs are written under `data/processed/` and remain local.
 
 ## Stage 0 commands
 
@@ -227,6 +228,133 @@ Executed SQL files: <M>
 ...
 ```
 
+## Stage 4 commands (optional monitoring extension)
+
+### ingest-monitoring-fit
+
+Purpose: decode Garmin monitoring FIT files into canonical minute-level heart-rate and stress parquet tables.
+
+```bash
+garmin-analytics ingest-monitoring-fit
+```
+
+Expected inputs:
+
+- `data/raw/DI_CONNECT/DI-Connect-Uploaded-Files` by default
+- override with `--input-dir`
+
+Expected outputs:
+
+- `data/processed/monitoring_heart_rate.parquet`
+- `data/processed/monitoring_stress.parquet`
+
+Current refreshed run shape:
+
+```text
+FIT files seen: 10,236
+Monitoring files decoded: 3,562
+Decode errors skipped: 0
+Heart-rate rows: 675,325
+Stress rows: 889,323
+Wrote data/processed/monitoring_heart_rate.parquet
+Wrote data/processed/monitoring_stress.parquet
+```
+
+### build-semantic-windows
+
+Purpose: build sleep-aware semantic windows from the processed sleep table, with local UTC offset metadata from daily aggregate tables when available.
+
+```bash
+garmin-analytics build-semantic-windows
+```
+
+Expected inputs:
+
+- `data/processed/sleep.parquet`
+- `data/processed/daily_uds.parquet` by default, falling back to `data/processed/daily.parquet`
+
+Expected outputs:
+
+- `data/processed/semantic_sleep_windows.parquet`
+
+Current refreshed run shape:
+
+```text
+Wrote 556 rows to data/processed/semantic_sleep_windows.parquet
+Daily offset source: data/processed/daily_uds.parquet
+Rows with local UTC offset: 556
+```
+
+### build-monitoring-features
+
+Purpose: build the foundation sleep/wake monitoring feature table and aggregate summary report from minute-level HR/stress plus semantic windows.
+
+```bash
+garmin-analytics build-monitoring-features
+```
+
+Expected inputs:
+
+- `data/processed/monitoring_heart_rate.parquet`
+- `data/processed/monitoring_stress.parquet`
+- `data/processed/semantic_sleep_windows.parquet`
+
+Expected outputs:
+
+- `data/processed/monitoring_daily_features.parquet`
+- `reports/monitoring_foundation_summary.md`
+
+Current refreshed run shape:
+
+```text
+Wrote 556 rows to data/processed/monitoring_daily_features.parquet
+Wrote reports/monitoring_foundation_summary.md
+```
+
+### build-monitoring-datasets
+
+Purpose: build the monitoring quality index, compact core feature table, cleaned full feature table, and feature catalog.
+
+```bash
+garmin-analytics build-monitoring-datasets
+```
+
+Expected inputs:
+
+- `data/processed/monitoring_heart_rate.parquet`
+- `data/processed/monitoring_stress.parquet`
+- `data/processed/semantic_sleep_windows.parquet`
+
+Expected outputs:
+
+- `data/processed/monitoring_quality_index.parquet`
+- `data/processed/monitoring_features_core_v0.parquet`
+- `data/processed/monitoring_features_full_v0.parquet`
+- `reports/monitoring_quality_summary.md`
+- `reports/monitoring_core_features_summary.md`
+- `reports/monitoring_features_full_summary.md`
+- `reports/monitoring_features_full_catalog.csv`
+- `reports/monitoring_features_full_catalog.md`
+
+Current refreshed run shape:
+
+```text
+Wrote 589 quality rows to data/processed/monitoring_quality_index.parquet
+Wrote 589 core rows and 93 columns to data/processed/monitoring_features_core_v0.parquet
+Wrote 589 full rows and 243 columns to data/processed/monitoring_features_full_v0.parquet
+Wrote reports/monitoring_quality_summary.md
+Wrote reports/monitoring_core_features_summary.md
+Wrote reports/monitoring_features_full_summary.md
+Wrote reports/monitoring_features_full_catalog.csv
+Wrote reports/monitoring_features_full_catalog.md
+```
+
+Notes:
+
+- Join `monitoring_quality_index.parquet` to feature tables on `analysis_window_id` before modeling.
+- `modeling_recovery_v0_eligible` is the baseline recovery-modeling eligibility flag.
+- Numeric stress features use raw Garmin stress `0..100`; HR-confirmed raw `-2` contributes only to active/status semantics.
+
 ## Module-mode equivalent
 
 Replace `garmin-analytics <command>` with:
@@ -243,6 +371,10 @@ PYTHONPATH=src python -m garmin_analytics <command>
 4. `garmin-analytics build-daily`
 5. `garmin-analytics sanitize`
 6. `garmin-analytics quality`
-7. `garmin-analytics build-sql-mart` (optional SQL layer)
-8. `garmin-analytics run-sql-portfolio` (optional SQL layer)
-9. Open notebooks (`jupyter lab`)
+7. `garmin-analytics ingest-monitoring-fit` (optional Stage 4)
+8. `garmin-analytics build-semantic-windows` (optional Stage 4)
+9. `garmin-analytics build-monitoring-features` (optional Stage 4)
+10. `garmin-analytics build-monitoring-datasets` (optional Stage 4)
+11. `garmin-analytics build-sql-mart` (optional SQL layer)
+12. `garmin-analytics run-sql-portfolio` (optional SQL layer)
+13. Open notebooks (`jupyter lab`)

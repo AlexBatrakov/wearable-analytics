@@ -1,7 +1,10 @@
 # Pipeline
 
 This project follows:
-**discover → ingest → build → sanitize → quality → SQL mart (optional) → EDA**
+**discover -> ingest -> build -> sanitize -> quality -> SQL mart (optional) -> EDA -> validation/modeling**
+
+It also has a Stage 4 monitoring extension:
+**FIT decode -> semantic sleep/wake windows -> monitoring quality index -> core/full feature tables**
 
 Why this matters: the repository is structured as a full local analytics workflow, not as a notebook-only analysis. That distinction is part of the portfolio value of the project.
 
@@ -9,6 +12,8 @@ Why this matters: the repository is structured as a full local analytics workflo
 
 Place Garmin export files locally under `data/raw/DI_CONNECT` (or set `GARMIN_EXPORT_DIR`).
 Input JSON is nested; Stage 0 flattens and normalizes it into day-level parquet tables used by later stages.
+Monitoring FIT exports are decoded from the Garmin uploaded-files folder under the same local export root.
+Raw exports and generated `data/` artifacts remain local and ignored.
 
 ## Why parquet
 
@@ -71,6 +76,36 @@ Why this stage exists:
 - Provides both embedded analytics DB (DuckDB) and server-style SQL showcase (PostgreSQL).
 - Keeps SQL outputs local-only (`reports/sql/duckdb`) to avoid publishing personal row-level snapshots.
 
+## FIT monitoring extension (Stage 4)
+
+Stage 4 adds minute-level Garmin monitoring data without changing the aggregate JSON pipeline.
+It should be run after `sleep.parquet` exists, and preferably after `daily_uds.parquet` or `daily.parquet` exists so semantic windows can retain local UTC offset metadata.
+
+Build order:
+1. `ingest-monitoring-fit` decodes Garmin monitoring FIT files into:
+   - `data/processed/monitoring_heart_rate.parquet`
+   - `data/processed/monitoring_stress.parquet`
+2. `build-semantic-windows` converts observed Garmin sleep records into sleep/wake windows:
+   - `data/processed/semantic_sleep_windows.parquet`
+3. `build-monitoring-features` writes the foundation table and summary:
+   - `data/processed/monitoring_daily_features.parquet`
+   - `reports/monitoring_foundation_summary.md`
+4. `build-monitoring-datasets` writes the quality index plus cleaned feature tables:
+   - `data/processed/monitoring_quality_index.parquet`
+   - `data/processed/monitoring_features_core_v0.parquet`
+   - `data/processed/monitoring_features_full_v0.parquet`
+   - `reports/monitoring_quality_summary.md`
+   - `reports/monitoring_core_features_summary.md`
+   - `reports/monitoring_features_full_summary.md`
+   - `reports/monitoring_features_full_catalog.csv`
+   - `reports/monitoring_features_full_catalog.md`
+
+Why this stage exists:
+- Adds minute-level HR/stress evidence to the day-level aggregate story.
+- Uses sleep-aware windows instead of midnight-to-midnight physiological grouping.
+- Separates row-level quality/filtering from candidate modeling features.
+- Prepares monitoring features for downstream EDA and time-aware modeling without claiming final predictive success.
+
 ## EDA flow (Stage 2)
 
 - `notebooks/01_eda_prepare.ipynb` defines the Stage 2 analysis contract, builds canonical EDA slices, and provides a coverage-aware overview (retention, label distribution, monthly signal coverage, day-level calendar heatmap).
@@ -89,3 +124,5 @@ See stage pages for command-level detail:
 - [Stage 1](stage1.md)
 - [SQL layer](sql_layer.md)
 - [Stage 2](stage2.md)
+- [Stage 3](stage3.md)
+- [Stage 4 monitoring](stage4_monitoring.md)

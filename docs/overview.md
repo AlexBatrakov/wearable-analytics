@@ -1,7 +1,7 @@
 # Overview
 
 Garmin Wearable Analytics is a privacy-first local pipeline for Garmin exports.
-It turns raw files into curated parquet datasets, applies sanitization and quality checks, and supports reproducible EDA.
+It turns raw aggregate JSON and minute-level FIT monitoring files into curated parquet datasets, applies sanitization and quality checks, and supports reproducible EDA.
 
 Raw exports and `data/` artifacts are local-only.
 Sanitized outputs are the default boundary for analysis and sharing.
@@ -20,6 +20,7 @@ This repo now has two layers:
 - [Stage 1.5](sql_layer.md): optional SQL mart (DuckDB primary + PostgreSQL showcase)
 - [Stage 2](stage2.md): EDA notebooks and interpretation
 - [Stage 3](stage3.md): initial validation and modeling
+- [Stage 4](stage4_monitoring.md): minute-level FIT monitoring extension
 
 ## Documentation map
 
@@ -33,6 +34,7 @@ This repo now has two layers:
 - [SQL layer details](sql_layer.md)
 - [Stage 2 details](stage2.md)
 - [Stage 3 details](stage3.md)
+- [Stage 4 monitoring details](stage4_monitoring.md)
 
 ## Outputs at a glance
 
@@ -63,6 +65,16 @@ This repo now has two layers:
 - **Notebook (Stage 3)**
 	- `notebooks/05_modeling_recovery.ipynb` (validation + modeling baseline)
 	- `notebooks/06_statistical_validation.ipynb` (focused hypothesis checks for promoted findings)
+- **Monitoring outputs (Stage 4)**
+	- `data/processed/monitoring_heart_rate.parquet`
+	- `data/processed/monitoring_stress.parquet`
+	- `data/processed/semantic_sleep_windows.parquet`
+	- `data/processed/monitoring_daily_features.parquet`
+	- `data/processed/monitoring_quality_index.parquet`
+	- `data/processed/monitoring_features_core_v0.parquet`
+	- `data/processed/monitoring_features_full_v0.parquet`
+	- `reports/monitoring_*_summary.md`
+	- `reports/monitoring_features_full_catalog.csv`
 
 ## Quick run
 
@@ -72,6 +84,15 @@ garmin-analytics ingest-uds && garmin-analytics ingest-sleep && garmin-analytics
 garmin-analytics sanitize && garmin-analytics quality
 garmin-analytics build-sql-mart && garmin-analytics run-sql-portfolio
 jupyter lab
+```
+
+Optional Stage 4 monitoring extension:
+
+```bash
+garmin-analytics ingest-monitoring-fit
+garmin-analytics build-semantic-windows
+garmin-analytics build-monitoring-features
+garmin-analytics build-monitoring-datasets
 ```
 
 For command flags/options and detailed output shapes, see [CLI commands](cli.md).

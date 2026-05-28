@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This project turns local Garmin wearable exports into a privacy-safe analytics workflow that is strong enough to use as a DS/DA portfolio case study. The raw source data is messy: nested JSON, multiple export families, changing coverage over time, and model-derived device metrics that can be informative but are not always trustworthy at face value. To make the data usable, the project builds an end-to-end workflow: discover raw files, ingest them into parquet checkpoints, sanitize sensitive fields, generate a data dictionary, label day-level quality, and only then move into exploratory analysis. The final EDA is organized into four notebooks that cover coverage/readiness, time-series behavior, distributions and segmentation, and directed cross-metric relationships. A first Stage 3 pass then turns the strongest day-to-night finding into an explicit modeling task. The result is a repo that demonstrates not only plotting ability, but also data hygiene, quality-aware analysis, careful interpretation of observational signals, and a compact time-aware modeling baseline.
+This project turns local Garmin wearable exports into a privacy-safe analytics workflow that is strong enough to use as a DS/DA portfolio case study. The raw source data is messy: nested JSON, FIT monitoring files, changing coverage over time, and model-derived device metrics that can be informative but are not always trustworthy at face value. To make the data usable, the project builds an end-to-end workflow: discover raw files, ingest them into parquet checkpoints, sanitize sensitive fields, generate a data dictionary, label day-level quality, and only then move into exploratory analysis. The final EDA is organized into four notebooks that cover coverage/readiness, time-series behavior, distributions and segmentation, and directed cross-metric relationships. A first Stage 3 pass then turns the strongest day-to-night finding into an explicit modeling task, while Stage 4 adds a minute-level HR/stress monitoring data product for future recovery-risk analysis. The result is a repo that demonstrates not only plotting ability, but also data hygiene, quality-aware analysis, careful interpretation of observational signals, and a compact time-aware modeling baseline.
 
 ## Problem Framing
 
@@ -21,6 +21,7 @@ In practical terms, the project had to solve four non-trivial problems before an
 The source data comes from two Garmin export families stored locally under `data/raw/DI_CONNECT`:
 - UDS aggregator exports with day-level nested wellness/activity summaries
 - sleep export files with nightly sleep and respiration information
+- FIT monitoring files with minute-level heart-rate and stress observations
 
 Those raw files are never part of the public-facing project story. The pipeline converts them into day-level parquet outputs and then applies a sanitize step to remove or suppress fields that are sensitive or analytically irrelevant. The sanitized outputs become the default boundary for analysis, sharing, and documentation. This is a deliberate design choice: the project demonstrates not just analysis skill, but disciplined handling of personal data.
 
@@ -34,7 +35,11 @@ flowchart LR
     D --> E["Sanitize sensitive fields"]
     E --> F["Data dictionary + quality labels"]
     F --> G["EDA notebooks"]
-    G --> H["Curated findings + case study"]
+    G --> H["Stage 3 validation + modeling"]
+    D --> I["Stage 4 FIT monitoring extension"]
+    I --> J["Monitoring quality + feature tables"]
+    H --> K["Curated findings + case study"]
+    J --> K
 ```
 
 Core project stages:
@@ -42,6 +47,7 @@ Core project stages:
 - **Stage 1**: sanitize outputs, generate a data dictionary, and label day-level quality
 - **Stage 2**: run notebook-based EDA with explicit quality-aware analysis slices
 - **Stage 3**: validate and model `day D -> next-night` sleep outcomes with compact scikit-learn baselines
+- **Stage 4**: decode minute-level FIT monitoring records into sleep-aware HR/stress quality and feature tables
 
 This matters because the repo is not just about “making charts”; it shows a complete local analytics workflow that can absorb imperfect personal data without pretending the imperfections do not exist.
 
@@ -153,11 +159,28 @@ Just as importantly, Stage 3 keeps a limited result instead of overstating it: c
 
 Stage 3 also adds a lightweight validation layer for the claims that matter most to the public narrative. Three of the strongest observational findings hold up under simple statistical checks: Saturday activity is significantly higher than Sunday activity, higher daytime awake stress is associated with lower next-night recovery, and higher daytime awake stress is also associated with higher next-night sleep stress. A fourth descriptive observation, that Tuesday is the highest-stress weekday, remains weaker and is better treated as an exploratory weekly-rhythm note than as a validated headline result.
 
+## Monitoring Extension
+
+I discovered an unused minute-level FIT layer after the aggregate analysis.
+That changed the project from a purely day-level JSON case study into a multi-resolution wearable analytics pipeline.
+
+The monitoring extension decodes Garmin FIT monitoring files into minute-level heart-rate and stress tables, then aligns those records to semantic sleep/wake windows instead of midnight-to-midnight calendar days. The current refreshed run decoded **3,562** monitoring FIT files, producing **675,325** heart-rate rows and **889,323** stress rows.
+
+The important design choice is separation of concerns:
+- `monitoring_quality_index.parquet` holds row-level plausibility, coverage, gap, boundary, and recovery-eligibility flags
+- `monitoring_features_core_v0.parquet` is a compact `589 x 93` starter feature table
+- `monitoring_features_full_v0.parquet` is a cleaned `589 x 243` feature table with a catalog for leakage-aware feature selection
+
+Stress status values are handled explicitly. Raw `0..100` values are numeric Garmin stress readings, raw `-1` is an unmeasurable/status value, and raw `-2` is only treated as an active/large-motion proxy when the same minute also has valid heart rate.
+
+This stage is not a final modeling claim. Its value is that it turns previously unused minute-level data into a documented, quality-aware feature layer that can be evaluated honestly in the next modeling pass.
+
 ## What This Demonstrates as a DS/DA Project
 
 This repo demonstrates more than one skill category:
 - **Raw data wrangling**: nested JSON exports are flattened into consistent day-level tables
 - **Schema handling**: sleep and UDS records are integrated without losing traceability of important fields
+- **Multi-resolution data design**: aggregate JSON metrics and minute-level FIT monitoring are kept as linked but distinct analytical layers
 - **Privacy-aware preprocessing**: sanitize is treated as a first-class stage, not as a cosmetic cleanup
 - **Quality-rule design**: strict and loose readiness labels make downstream analysis more defensible
 - **EDA structuring**: the analysis is split into coverage, time series, distributions/segmentation, and relationships rather than dumped into one notebook
@@ -170,7 +193,7 @@ That combination is exactly why the project is useful as a balanced DS/DA portfo
 
 ## Limitations
 
-This is still a single-subject observational dataset. The metrics are wearable-derived and partly model-based, not clinical measurements. Coverage gaps, charging periods, and off-wrist artifacts can still shape some day-level aggregates even after quality filtering. The findings are therefore useful as disciplined observational insights, not as causal or medical claims.
+This is still a single-subject observational dataset. The metrics are wearable-derived and partly model-based, not diagnostic measurements. Coverage gaps, charging periods, and off-wrist artifacts can still shape some day-level aggregates even after quality filtering. The findings are therefore useful as disciplined observational insights, not as causal or treatment claims.
 
 ## Where to Go Deeper
 
@@ -182,3 +205,4 @@ This is still a single-subject observational dataset. The metrics are wearable-d
 - [Stage 1: sanitize, data dictionary, quality](stage1.md)
 - [Stage 2: EDA details](stage2.md)
 - [Stage 3: validation and modeling](stage3.md)
+- [Stage 4: FIT monitoring extension](stage4_monitoring.md)

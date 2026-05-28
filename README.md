@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/AlexBatrakov/wearable-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexBatrakov/wearable-analytics/actions/workflows/ci.yml)
 
-Garmin Wearable Analytics is a privacy-first case study built on local Garmin exports. It turns messy nested JSON into curated parquet tables, applies sanitization and quality gating before analysis, and uses notebook-driven EDA to surface interpretable behavioral and recovery patterns. The project is packaged as a balanced DS/DA portfolio artifact that combines analytical depth with reproducible engineering practices.
+Garmin Wearable Analytics is a privacy-first case study built on local Garmin exports. It turns messy aggregate JSON and minute-level FIT monitoring files into curated parquet tables, applies sanitization and quality gating before analysis, and uses notebook-driven EDA to surface interpretable behavioral and recovery patterns. The project is packaged as a balanced DS/DA portfolio artifact that combines analytical depth with reproducible engineering practices.
 
 If you open only one file after this page, start with [the case study](docs/case_study.md).
 
@@ -14,6 +14,7 @@ If you open only one file after this page, start with [the case study](docs/case
 - SQL-first analytics layer (`DuckDB` primary + compact `PostgreSQL` showcase) with CTE/window/view patterns
 - Structured EDA across coverage, time series, distributions, segmentation, and directed relationship analysis
 - Time-aware Stage 3 extension with statistical validation plus classification/regression baselines
+- Stage 4 monitoring extension with minute-level HR/stress FIT decoding, sleep-aware windows, quality index, and feature tables
 - Reproducible Python project organization with CLI workflows, tests, and CI-backed iteration
 
 ## Role Fit
@@ -25,9 +26,10 @@ If you open only one file after this page, start with [the case study](docs/case
 ## If You Have 60 Seconds
 
 1. [Case study](docs/case_study.md)
-2. [Stage 3 (validation + modeling)](docs/stage3.md)
-3. [SQL layer (DuckDB + PostgreSQL showcase)](docs/sql_layer.md)
-4. [Relationships notebook](notebooks/04_eda_relationships.ipynb)
+2. [Stage 4 monitoring extension](docs/stage4_monitoring.md)
+3. [Stage 3 (validation + modeling)](docs/stage3.md)
+4. [SQL layer (DuckDB + PostgreSQL showcase)](docs/sql_layer.md)
+5. [Relationships notebook](notebooks/04_eda_relationships.ipynb)
 
 ## Headline Findings
 
@@ -57,6 +59,7 @@ If you open only one file after this page, start with [the case study](docs/case
 - **Quality & privacy**: sanitize sensitive fields, generate a data dictionary, label day readiness, and isolate suspicious artifacts
 - **SQL layer (optional)**: build a DuckDB mart, run portfolio SQL packs, and mirror a compact schema in PostgreSQL
 - **EDA notebooks**: prepare coverage-aware slices, inspect time series, analyze distributions, and validate cross-metric relationships
+- **Monitoring extension**: decode minute-level FIT HR/stress records, build sleep-aware semantic windows, and publish quality/feature tables
 - **Case study & docs**: recruiter-facing summary first, technical stage docs and notebooks second
 
 ## Results Snapshot
@@ -74,6 +77,13 @@ If you open only one file after this page, start with [the case study](docs/case
 - Current selected test result: balanced accuracy **~0.68**, ROC-AUC **~0.71**, PR-AUC **~0.60**, F1 **~0.62**.
 - Statistical validation supports key directional findings (for example, `daytime awake stress -> lower next-night recovery`).
 
+## Stage 4 Monitoring Snapshot
+
+- Decoded **3,562** Garmin monitoring FIT files from **10,236** FIT files seen, with **0** decode errors skipped.
+- Built minute-level monitoring tables with **675,325** heart-rate rows and **889,323** stress rows.
+- Created **556** semantic sleep windows, a **589-row** monitoring quality index, and core/full feature tables for downstream EDA/modeling.
+- Keeps quality diagnostics separate from candidate features: `monitoring_quality_index.parquet` joins to feature tables on `analysis_window_id`.
+
 ## Technical Appendix / Deep Dive
 
 Start here for the portfolio narrative, then use the links below for technical depth:
@@ -87,6 +97,7 @@ Start here for the portfolio narrative, then use the links below for technical d
 - [Stage 1](docs/stage1.md) - sanitize, data dictionary, and quality labeling.
 - [Stage 2](docs/stage2.md) - EDA workflow and promoted observational findings.
 - [Stage 3](docs/stage3.md) - predictive modeling and lightweight statistical validation.
+- [Stage 4](docs/stage4_monitoring.md) - minute-level FIT monitoring extension, quality index, and feature table contract.
 - [SQL layer](docs/sql_layer.md) - DuckDB mart, SQL query pack, and PostgreSQL showcase.
 - [CLI](docs/cli.md) - command reference, flags, outputs, and run order.
 - [Privacy](docs/privacy.md) - guardrails for local-only data and safe publishing boundaries.
@@ -109,6 +120,15 @@ garmin-analytics ingest-sleep
 garmin-analytics build-daily
 garmin-analytics sanitize
 garmin-analytics quality
+```
+
+Optional monitoring extension:
+
+```bash
+garmin-analytics ingest-monitoring-fit
+garmin-analytics build-semantic-windows
+garmin-analytics build-monitoring-features
+garmin-analytics build-monitoring-datasets
 ```
 
 Optional SQL layer:
