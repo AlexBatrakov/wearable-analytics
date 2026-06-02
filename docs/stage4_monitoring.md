@@ -143,6 +143,16 @@ Excluded from candidate features:
 
 Those exclusions keep the modeling surface smaller and keep quality logic separate from predictors.
 
+## Public Analytical Layer
+
+The monitoring layer now has one public EDA notebook and companion report:
+
+- `notebooks/07_monitoring_fit_eda.ipynb`: monitoring inventory, quality funnel, coverage diagnostics, feature-table overview, and a minute-level semantic-day browser.
+- `reports/monitoring_eda_summary.md`: compact EDA summary for the current refreshed monitoring run.
+
+Notebook 07 is the right entry point for understanding what the monitoring data contains and how quality filtering changes the usable row set.
+The notebook reads the current `data/processed/*.parquet` monitoring outputs directly and summarizes the feature families that can be evaluated in the next modeling pass.
+
 ## Stress Status Semantics
 
 Raw Garmin stress values are preserved, but they are not all numeric stress scores:
@@ -160,16 +170,17 @@ The curated `stress_frac_active` feature is therefore an activity/status proxy, 
 
 ## Modeling Readiness
 
-Stage 4 prepares the monitoring layer for downstream EDA and modeling by providing:
+Stage 4 prepares and demonstrates the monitoring layer for downstream EDA and future modeling by providing:
 
 - a canonical minute-level HR/stress table pair
 - sleep-aware analysis windows
 - explicit row-level quality and eligibility flags
 - compact and full candidate feature tables
 - a feature catalog with families, signals, phases, windows, and cautions
+- public EDA that keeps quality filtering, coverage, boundary confidence, and feature-readiness visible
 
-The next analytical step is to evaluate whether these monitoring features improve recovery-risk analysis under time-aware validation.
-Any final modeling result should be reported separately from this data-product documentation.
+The current public result is intentionally limited.
+The main value is a quality-aware monitoring feature layer and a defensible EDA bridge from raw minute-level series to future drift-aware modeling, not a production prediction claim.
 
 ## Limitations
 

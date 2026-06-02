@@ -8,6 +8,7 @@ Helper utilities for schema exploration and data previews. These are optional an
 - Some older preview files may be stale and may need regeneration.
 - `make_*_previews.py` scripts import `garmin_analytics`, so run them with `PYTHONPATH=src` or after `pip install -e .`.
 - `setup_public_demo.py` installs the committed public sample into `data/processed/` so Stage 1 can be exercised without private Garmin exports.
+- `run_stage4_monitoring_public_analysis.py` regenerates the public Stage 4 monitoring EDA report and compact figures from local processed monitoring parquet files.
 
 ## Script types
 
@@ -31,6 +32,16 @@ Example:
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/setup_public_demo.py
+```
+
+### Stage 4 monitoring EDA
+
+- `run_stage4_monitoring_public_analysis.py`: regenerate `reports/monitoring_eda_summary.md` and compact monitoring EDA figures in `docs/img/`
+
+Example:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/run_stage4_monitoring_public_analysis.py --selected-date 2026-02-10
 ```
 
 ### Preview generators (human-readable pretty JSON)

@@ -57,7 +57,7 @@
 ## Stress And Entropy Policy
 
 - Numeric stress features use only valid raw stress `0..100`.
-- `stress_frac_active` is raw stress `-2` with same-minute valid HR, retained as an active/large-motion proxy rather than high stress.
+- `stress_frac_active` comes from the raw `-2` status only when same-minute valid HR confirms active or large-motion context.
 - Stress entropy uses fixed bins: `0..25`, `26..50`, `51..75`, and `76..100`.
 - HR entropy uses fixed maximum-heart-rate zones derived from `max_hr_bpm`.
 

@@ -173,7 +173,7 @@ The important design choice is separation of concerns:
 
 Stress status values are handled explicitly. Raw `0..100` values are numeric Garmin stress readings, raw `-1` is an unmeasurable/status value, and raw `-2` is only treated as an active/large-motion proxy when the same minute also has valid heart rate.
 
-This stage is not a final modeling claim. Its value is that it turns previously unused minute-level data into a documented, quality-aware feature layer that can be evaluated honestly in the next modeling pass.
+The public analytical layer now adds a monitoring EDA/day-browser notebook that shows what the minute-level layer contributes beyond daily aggregates: coverage diagnostics, stress-state composition, HR zones, within-day shape, and pre-sleep context. The modeling question is intentionally left as a next step until the monitoring feature layer is evaluated with a stronger drift-aware tuning pipeline.
 
 ## What This Demonstrates as a DS/DA Project
 
@@ -201,6 +201,7 @@ This is still a single-subject observational dataset. The metrics are wearable-d
 - [Notebook 03: distributions + segmentation](../notebooks/03_eda_distributions.ipynb)
 - [Notebook 04: relationships + artifact review](../notebooks/04_eda_relationships.ipynb)
 - [Notebook 05: Stage 3 modeling baseline](../notebooks/05_modeling_recovery.ipynb)
+- [Notebook 07: monitoring FIT EDA](../notebooks/07_monitoring_fit_eda.ipynb)
 - [Pipeline overview](pipeline.md)
 - [Stage 1: sanitize, data dictionary, quality](stage1.md)
 - [Stage 2: EDA details](stage2.md)

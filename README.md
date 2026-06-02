@@ -83,6 +83,7 @@ If you open only one file after this page, start with [the case study](docs/case
 - Built minute-level monitoring tables with **675,325** heart-rate rows and **889,323** stress rows.
 - Created **556** semantic sleep windows, a **589-row** monitoring quality index, and core/full feature tables for downstream EDA/modeling.
 - Keeps quality diagnostics separate from candidate features: `monitoring_quality_index.parquet` joins to feature tables on `analysis_window_id`.
+- Adds public monitoring EDA, a minute-level day browser, and feature-readiness diagnostics for the next modeling pass.
 
 ## Technical Appendix / Deep Dive
 
@@ -98,6 +99,7 @@ Start here for the portfolio narrative, then use the links below for technical d
 - [Stage 2](docs/stage2.md) - EDA workflow and promoted observational findings.
 - [Stage 3](docs/stage3.md) - predictive modeling and lightweight statistical validation.
 - [Stage 4](docs/stage4_monitoring.md) - minute-level FIT monitoring extension, quality index, and feature table contract.
+- [Monitoring EDA notebook](notebooks/07_monitoring_fit_eda.ipynb) - public Stage 4 analytical layer for minute-level FIT data.
 - [SQL layer](docs/sql_layer.md) - DuckDB mart, SQL query pack, and PostgreSQL showcase.
 - [CLI](docs/cli.md) - command reference, flags, outputs, and run order.
 - [Privacy](docs/privacy.md) - guardrails for local-only data and safe publishing boundaries.
