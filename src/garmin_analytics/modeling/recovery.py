@@ -159,25 +159,51 @@ def _select_model_specs(model_specs: dict[str, T], model_names: Sequence[str] | 
     return {name: model_specs[name] for name in model_names}
 
 
+def _logistic_penalty_kwargs(penalty: str, *, l1_ratio: float | None = None) -> dict[str, float | str]:
+    """Return LogisticRegression penalty kwargs across sklearn penalty API versions."""
+    default_penalty = LogisticRegression().penalty
+    if default_penalty == "deprecated":
+        if penalty == "l1":
+            return {"l1_ratio": 1.0}
+        if penalty == "elasticnet":
+            if l1_ratio is None:
+                raise ValueError("elasticnet logistic regression requires l1_ratio")
+            return {"l1_ratio": l1_ratio}
+        if penalty == "l2":
+            return {"l1_ratio": 0.0}
+        raise ValueError(f"unsupported logistic penalty: {penalty}")
+
+    if penalty == "elasticnet":
+        if l1_ratio is None:
+            raise ValueError("elasticnet logistic regression requires l1_ratio")
+        return {"penalty": penalty, "l1_ratio": l1_ratio}
+    return {"penalty": penalty}
+
+
 def _classification_model_specs(random_state: int) -> dict[str, object]:
     return {
         "dummy_most_frequent": DummyClassifier(strategy="most_frequent"),
-        "logistic_regression": LogisticRegression(max_iter=1000, class_weight="balanced", random_state=random_state),
+        "logistic_regression": LogisticRegression(
+            max_iter=1000,
+            class_weight="balanced",
+            random_state=random_state,
+            **_logistic_penalty_kwargs("l2"),
+        ),
         "logistic_regression_l1": LogisticRegression(
             max_iter=3000,
             class_weight="balanced",
             solver="saga",
-            l1_ratio=1.0,
             C=0.3,
             random_state=random_state,
+            **_logistic_penalty_kwargs("l1"),
         ),
         "logistic_regression_elasticnet": LogisticRegression(
             max_iter=3000,
             class_weight="balanced",
             solver="saga",
-            l1_ratio=0.5,
             C=0.5,
             random_state=random_state,
+            **_logistic_penalty_kwargs("elasticnet", l1_ratio=0.5),
         ),
         "random_forest": RandomForestClassifier(
             n_estimators=300,

@@ -4,6 +4,7 @@ import pandas as pd
 
 from garmin_analytics.modeling.recovery import (
     TimeSplitConfig,
+    _classification_model_specs,
     build_confusion_table,
     build_feature_importance_table,
     build_permutation_importance_table,
@@ -15,6 +16,32 @@ from garmin_analytics.modeling.recovery import (
     split_time_ordered,
     tune_probability_threshold,
 )
+
+
+def _effective_logistic_penalty(model: object) -> str | None:
+    penalty = getattr(model, "penalty", None)
+    if penalty != "deprecated":
+        return penalty
+
+    ratio = getattr(model, "l1_ratio", 0.0)
+    if getattr(model, "C", None) == float("inf"):
+        return None
+    if ratio is None or ratio == 0:
+        return "l2"
+    if ratio == 1:
+        return "l1"
+    return "elasticnet"
+
+
+def test_classification_model_specs_match_logistic_penalty_names() -> None:
+    specs = _classification_model_specs(random_state=123)
+
+    assert _effective_logistic_penalty(specs["logistic_regression"]) == "l2"
+    assert _effective_logistic_penalty(specs["logistic_regression_l1"]) == "l1"
+    assert specs["logistic_regression_l1"].solver == "saga"
+    assert _effective_logistic_penalty(specs["logistic_regression_elasticnet"]) == "elasticnet"
+    assert specs["logistic_regression_elasticnet"].solver == "saga"
+    assert specs["logistic_regression_elasticnet"].l1_ratio == 0.5
 
 
 def _sample_model_frame() -> pd.DataFrame:
