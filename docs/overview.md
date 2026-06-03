@@ -73,8 +73,10 @@ This repo now has two layers:
 	- `data/processed/monitoring_quality_index.parquet`
 	- `data/processed/monitoring_features_core_v0.parquet`
 	- `data/processed/monitoring_features_full_v0.parquet`
+	- `data/processed/stage4_sleep_modeling_frame.parquet`
 	- `reports/monitoring_*_summary.md`
 	- `reports/monitoring_features_full_catalog.csv`
+	- `reports/stage4_sleep_modeling_*`
 
 ## Quick run
 
@@ -93,6 +95,7 @@ garmin-analytics ingest-monitoring-fit
 garmin-analytics build-semantic-windows
 garmin-analytics build-monitoring-features
 garmin-analytics build-monitoring-datasets
+garmin-analytics build-stage4-modeling-frame
 ```
 
 For command flags/options and detailed output shapes, see [CLI commands](cli.md).

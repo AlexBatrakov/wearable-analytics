@@ -355,6 +355,51 @@ Notes:
 - `modeling_recovery_v0_eligible` is the baseline recovery-modeling eligibility flag.
 - Numeric stress features use raw Garmin stress `0..100`; HR-confirmed raw `-2` contributes only to active/status semantics.
 
+### build-stage4-modeling-frame
+
+Purpose: build the shared Stage 4 `day D -> next sleep` modeling frame, feature-set catalog, and audit summary before model-specific notebooks run.
+
+```bash
+garmin-analytics build-stage4-modeling-frame
+```
+
+Expected inputs:
+
+- `data/processed/monitoring_quality_index.parquet`
+- `data/processed/monitoring_features_core_v0.parquet`
+- `data/processed/monitoring_features_full_v0.parquet`
+- `reports/monitoring_features_full_catalog.csv`
+- `data/processed/sleep_sanitized.parquet` or `data/processed/sleep.parquet`
+- `data/processed/daily_sanitized.parquet` or `data/processed/daily.parquet`
+- `data/processed/daily_quality.parquet`
+
+Expected outputs:
+
+- `data/processed/stage4_sleep_modeling_frame.parquet`
+- `reports/stage4_sleep_modeling_frame_summary.md`
+- `reports/stage4_sleep_modeling_feature_sets.csv`
+- `reports/stage4_sleep_modeling_feature_sets.md`
+
+Current refreshed run shape:
+
+```text
+Wrote 589 rows and 295 columns to data/processed/stage4_sleep_modeling_frame.parquet
+Split train: rows=330 eligible=330 primary_target=330
+Split valid: rows=71 eligible=71 primary_target=71
+Split test: rows=71 eligible=71 primary_target=71
+Split not_eligible_or_missing_target: rows=117 eligible=0 primary_target=52
+Feature set aggregate_stage3_baseline: 33 columns
+Feature set monitoring_core_wake_pre_sleep: 56 columns
+Feature set monitoring_full_wake_pre_sleep: 123 columns
+Feature set aggregate_plus_monitoring_full: 138 columns
+```
+
+Notes:
+
+- The primary continuous target is next-sleep `avgSleepStress`.
+- The default split is `past_random_valid_future_test`: future test block, random train/validation split inside earlier history.
+- The command builds the modeling contract only; model fitting happens in later notebooks.
+
 ## Module-mode equivalent
 
 Replace `garmin-analytics <command>` with:
@@ -375,6 +420,7 @@ PYTHONPATH=src python -m garmin_analytics <command>
 8. `garmin-analytics build-semantic-windows` (optional Stage 4)
 9. `garmin-analytics build-monitoring-features` (optional Stage 4)
 10. `garmin-analytics build-monitoring-datasets` (optional Stage 4)
-11. `garmin-analytics build-sql-mart` (optional SQL layer)
-12. `garmin-analytics run-sql-portfolio` (optional SQL layer)
-13. Open notebooks (`jupyter lab`)
+11. `garmin-analytics build-stage4-modeling-frame` (optional Stage 4)
+12. `garmin-analytics build-sql-mart` (optional SQL layer)
+13. `garmin-analytics run-sql-portfolio` (optional SQL layer)
+14. Open notebooks (`jupyter lab`)

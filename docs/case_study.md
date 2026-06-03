@@ -170,10 +170,11 @@ The important design choice is separation of concerns:
 - `monitoring_quality_index.parquet` holds row-level plausibility, coverage, gap, boundary, and recovery-eligibility flags
 - `monitoring_features_core_v0.parquet` is a compact `589 x 93` starter feature table
 - `monitoring_features_full_v0.parquet` is a cleaned `589 x 243` feature table with a catalog for leakage-aware feature selection
+- `stage4_sleep_modeling_frame.parquet` aligns day-D monitoring and aggregate context with next-sleep targets for the upcoming modeling pipeline
 
 Stress status values are handled explicitly. Raw `0..100` values are numeric Garmin stress readings, raw `-1` is an unmeasurable/status value, and raw `-2` is only treated as an active/large-motion proxy when the same minute also has valid heart rate.
 
-The public analytical layer now adds a monitoring EDA/day-browser notebook that shows what the minute-level layer contributes beyond daily aggregates: coverage diagnostics, stress-state composition, HR zones, within-day shape, and pre-sleep context. The modeling question is intentionally left as a next step until the monitoring feature layer is evaluated with a stronger drift-aware tuning pipeline.
+The public analytical layer now adds a monitoring EDA/day-browser notebook that shows what the minute-level layer contributes beyond daily aggregates: coverage diagnostics, stress-state composition, HR zones, within-day shape, and pre-sleep context. It also adds a modeling-frame audit notebook that checks target alignment, eligibility, split policy, and feature-set definitions before the model-specific Stage 4 notebooks.
 
 ## What This Demonstrates as a DS/DA Project
 
@@ -202,6 +203,7 @@ This is still a single-subject observational dataset. The metrics are wearable-d
 - [Notebook 04: relationships + artifact review](../notebooks/04_eda_relationships.ipynb)
 - [Notebook 05: Stage 3 modeling baseline](../notebooks/05_modeling_recovery.ipynb)
 - [Notebook 07: monitoring FIT EDA](../notebooks/07_monitoring_fit_eda.ipynb)
+- [Notebook 08: sleep outcome modeling frame](../notebooks/08_sleep_outcome_modeling_frame.ipynb)
 - [Pipeline overview](pipeline.md)
 - [Stage 1: sanitize, data dictionary, quality](stage1.md)
 - [Stage 2: EDA details](stage2.md)

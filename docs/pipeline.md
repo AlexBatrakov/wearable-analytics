@@ -99,12 +99,17 @@ Build order:
    - `reports/monitoring_features_full_summary.md`
    - `reports/monitoring_features_full_catalog.csv`
    - `reports/monitoring_features_full_catalog.md`
+5. `build-stage4-modeling-frame` writes the shared sleep-outcome modeling contract:
+   - `data/processed/stage4_sleep_modeling_frame.parquet`
+   - `reports/stage4_sleep_modeling_frame_summary.md`
+   - `reports/stage4_sleep_modeling_feature_sets.csv`
+   - `reports/stage4_sleep_modeling_feature_sets.md`
 
 Why this stage exists:
 - Adds minute-level HR/stress evidence to the day-level aggregate story.
 - Uses sleep-aware windows instead of midnight-to-midnight physiological grouping.
 - Separates row-level quality/filtering from candidate modeling features.
-- Prepares monitoring features for downstream EDA and time-aware modeling without claiming final predictive success.
+- Prepares monitoring features and a shared modeling frame for downstream EDA and time-aware modeling without claiming final predictive success.
 
 ## EDA flow (Stage 2)
 

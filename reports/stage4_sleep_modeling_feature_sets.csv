@@ -1,0 +1,351 @@
+feature_set,feature_order,feature,source,dtype,non_null_count,missing_pct,modeling_non_null_count,modeling_missing_pct,family,phase,window,metric,candidate_model_feature,aggregate_review_group,included_in_aggregate_plus_monitoring_full
+aggregate_stage3_baseline,1,agg__totalSteps,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,totalSteps,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,2,agg__totalDistanceMeters,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,totalDistanceMeters,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,3,agg__activeKilocalories,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,activeKilocalories,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,4,agg__active_hours,aggregate Stage 3,Float64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,active_hours,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,5,agg__highly_active_hours,aggregate Stage 3,Float64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,highly_active_hours,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,6,agg__restingHeartRate,aggregate Stage 3,Int64,581,1.3582342954159592,472,0.0,direct_monitoring_overlap,aggregate,day_D,restingHeartRate,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,7,agg__minHeartRate,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,minHeartRate,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,8,agg__maxHeartRate,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,maxHeartRate,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,9,agg__bodyBatteryLowest,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBatteryLowest,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,10,agg__bodyBatteryHighest,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBatteryHighest,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,11,agg__bodyBattery_chargedValue,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBattery_chargedValue,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,12,agg__bodyBattery_drainedValue,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBattery_drainedValue,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,13,agg__bodyBatteryNetBalance,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBatteryNetBalance,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,14,agg__floorsAscendedInMeters,aggregate Stage 3,Float64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,floorsAscendedInMeters,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,15,agg__floorsDescendedInMeters,aggregate Stage 3,Float64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,floorsDescendedInMeters,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,16,agg__weekday_name,aggregate Stage 3,str,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,weekday_name,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,17,agg__awakeAverageStressLevel,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeAverageStressLevel,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,18,agg__awakeActivityHours,aggregate Stage 3,Float64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeActivityHours,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,19,agg__awakeLowStressHours,aggregate Stage 3,Float64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeLowStressHours,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,20,agg__awakeMediumStressHours,aggregate Stage 3,Float64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeMediumStressHours,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,21,agg__awakeHighStressHours,aggregate Stage 3,Float64,581,1.3582342954159592,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeHighStressHours,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,22,agg__awakeRestHours,aggregate Stage 3,Float64,572,2.886247877758913,469,0.6355932203389831,direct_monitoring_overlap,aggregate,day_D,awakeRestHours,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,23,agg__awakeUncatHours,aggregate Stage 3,Float64,581,1.3582342954159592,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeUncatHours,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,24,agg__awakeMeasuredHours,aggregate Stage 3,Float64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeMeasuredHours,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,25,agg__awakeActivityShare,aggregate Stage 3,float64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeActivityShare,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,26,agg__awakeLowStressShare,aggregate Stage 3,float64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeLowStressShare,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,27,agg__awakeMediumStressShare,aggregate Stage 3,float64,582,1.1884550084889642,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeMediumStressShare,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,28,agg__awakeHighStressShare,aggregate Stage 3,float64,581,1.3582342954159592,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeHighStressShare,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,29,agg__awakeRestShare,aggregate Stage 3,float64,572,2.886247877758913,469,0.6355932203389831,direct_monitoring_overlap,aggregate,day_D,awakeRestShare,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,30,agg__awakeUncatShare,aggregate Stage 3,float64,581,1.3582342954159592,472,0.0,direct_monitoring_overlap,aggregate,day_D,awakeUncatShare,True,direct_monitoring_overlap,False
+aggregate_stage3_baseline,31,agg__moderateIntensityMinutes,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,moderateIntensityMinutes,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,32,agg__vigorousIntensityMinutes,aggregate Stage 3,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,vigorousIntensityMinutes,True,non_overlapping_day_context,True
+aggregate_stage3_baseline,33,next_sleep_start_hour_local_wrapped,aggregate Stage 3,float64,524,11.03565365025467,472,0.0,schedule/context,wake/pre-sleep,next_sleep_boundary,start_hour_local_wrapped,True,,True
+monitoring_core_wake_pre_sleep,1,wake_hr_mean,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mean,True,,True
+monitoring_core_wake_pre_sleep,2,wake_hr_median,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,median,True,,True
+monitoring_core_wake_pre_sleep,3,wake_hr_std,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,std,True,,True
+monitoring_core_wake_pre_sleep,4,wake_hr_p90,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p90,True,,True
+monitoring_core_wake_pre_sleep,5,wake_hr_histogram_entropy,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,histogram_entropy,True,,True
+monitoring_core_wake_pre_sleep,6,wake_stress_mean,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mean,True,,True
+monitoring_core_wake_pre_sleep,7,wake_stress_median,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,median,True,,True
+monitoring_core_wake_pre_sleep,8,wake_stress_std,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,std,True,,True
+monitoring_core_wake_pre_sleep,9,wake_stress_p90,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p90,True,,True
+monitoring_core_wake_pre_sleep,10,wake_stress_histogram_entropy,monitoring core v0,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,histogram_entropy,True,,True
+monitoring_core_wake_pre_sleep,11,wake_stress_frac_resting,monitoring core v0,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_resting,True,,True
+monitoring_core_wake_pre_sleep,12,wake_stress_frac_low,monitoring core v0,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_low,True,,True
+monitoring_core_wake_pre_sleep,13,wake_stress_frac_medium,monitoring core v0,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_medium,True,,True
+monitoring_core_wake_pre_sleep,14,wake_stress_frac_high,monitoring core v0,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_high,True,,True
+monitoring_core_wake_pre_sleep,15,wake_stress_frac_active,monitoring core v0,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_active,True,,True
+monitoring_core_wake_pre_sleep,16,wake_hr_frac_below_zone1,monitoring core v0,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_below_zone1,True,,True
+monitoring_core_wake_pre_sleep,17,wake_hr_frac_zone1,monitoring core v0,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone1,True,,True
+monitoring_core_wake_pre_sleep,18,wake_hr_frac_zone2,monitoring core v0,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone2,True,,True
+monitoring_core_wake_pre_sleep,19,wake_hr_frac_zone3,monitoring core v0,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone3,True,,True
+monitoring_core_wake_pre_sleep,20,wake_hr_frac_zone4,monitoring core v0,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone4,True,,True
+monitoring_core_wake_pre_sleep,21,wake_hr_frac_zone5,monitoring core v0,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone5,True,,True
+monitoring_core_wake_pre_sleep,22,wake_hr_frac_above_mhr,monitoring core v0,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_above_mhr,False,,False
+monitoring_core_wake_pre_sleep,23,wake_hr_mean_abs_diff,monitoring core v0,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,mean_abs_diff,True,,True
+monitoring_core_wake_pre_sleep,24,wake_hr_roughness,monitoring core v0,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,roughness,True,,True
+monitoring_core_wake_pre_sleep,25,wake_stress_mean_abs_diff,monitoring core v0,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,mean_abs_diff,True,,True
+monitoring_core_wake_pre_sleep,26,wake_stress_roughness,monitoring core v0,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,roughness,True,,True
+monitoring_core_wake_pre_sleep,27,wake_hr_slope_per_hour,monitoring core v0,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,slope_per_hour,True,,True
+monitoring_core_wake_pre_sleep,28,wake_hr_trend_r2,monitoring core v0,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,trend_r2,True,,True
+monitoring_core_wake_pre_sleep,29,wake_stress_slope_per_hour,monitoring core v0,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,slope_per_hour,True,,True
+monitoring_core_wake_pre_sleep,30,wake_stress_trend_r2,monitoring core v0,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,trend_r2,True,,True
+monitoring_core_wake_pre_sleep,31,pre_sleep_4h_hr_slope_per_hour,monitoring core v0,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,slope_per_hour,True,,True
+monitoring_core_wake_pre_sleep,32,pre_sleep_4h_hr_trend_r2,monitoring core v0,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,trend_r2,True,,True
+monitoring_core_wake_pre_sleep,33,pre_sleep_4h_stress_slope_per_hour,monitoring core v0,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,slope_per_hour,True,,True
+monitoring_core_wake_pre_sleep,34,pre_sleep_4h_stress_trend_r2,monitoring core v0,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,trend_r2,True,,True
+monitoring_core_wake_pre_sleep,35,wake_q1_hr_mean,monitoring core v0,float64,537,8.828522920203735,472,0.0,relative windows,wake,wake_q1,hr_mean,True,,True
+monitoring_core_wake_pre_sleep,36,wake_q1_stress_mean,monitoring core v0,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_mean,True,,True
+monitoring_core_wake_pre_sleep,37,wake_q1_stress_high_fraction,monitoring core v0,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_high_fraction,True,,True
+monitoring_core_wake_pre_sleep,38,wake_q2_hr_mean,monitoring core v0,float64,528,10.35653650254669,472,0.0,relative windows,wake,wake_q2,hr_mean,True,,True
+monitoring_core_wake_pre_sleep,39,wake_q2_stress_mean,monitoring core v0,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_mean,True,,True
+monitoring_core_wake_pre_sleep,40,wake_q2_stress_high_fraction,monitoring core v0,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_high_fraction,True,,True
+monitoring_core_wake_pre_sleep,41,wake_q3_hr_mean,monitoring core v0,float64,527,10.526315789473683,472,0.0,relative windows,wake,wake_q3,hr_mean,True,,True
+monitoring_core_wake_pre_sleep,42,wake_q3_stress_mean,monitoring core v0,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_mean,True,,True
+monitoring_core_wake_pre_sleep,43,wake_q3_stress_high_fraction,monitoring core v0,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_high_fraction,True,,True
+monitoring_core_wake_pre_sleep,44,wake_q4_hr_mean,monitoring core v0,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,hr_mean,True,,True
+monitoring_core_wake_pre_sleep,45,wake_q4_stress_mean,monitoring core v0,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_mean,True,,True
+monitoring_core_wake_pre_sleep,46,wake_q4_stress_high_fraction,monitoring core v0,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_high_fraction,True,,True
+monitoring_core_wake_pre_sleep,47,pre_sleep_4h_hr_mean,monitoring core v0,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,mean,True,,True
+monitoring_core_wake_pre_sleep,48,pre_sleep_4h_hr_std,monitoring core v0,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,std,True,,True
+monitoring_core_wake_pre_sleep,49,pre_sleep_4h_hr_p90,monitoring core v0,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,p90,True,,True
+monitoring_core_wake_pre_sleep,50,pre_sleep_4h_hr_early_minus_late,monitoring core v0,float64,503,14.60101867572156,466,1.2711864406779663,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,early_minus_late,True,,True
+monitoring_core_wake_pre_sleep,51,pre_sleep_4h_stress_mean,monitoring core v0,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,mean,True,,True
+monitoring_core_wake_pre_sleep,52,pre_sleep_4h_stress_std,monitoring core v0,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,std,True,,True
+monitoring_core_wake_pre_sleep,53,pre_sleep_4h_stress_p90,monitoring core v0,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,p90,True,,True
+monitoring_core_wake_pre_sleep,54,pre_sleep_4h_stress_early_minus_late,monitoring core v0,float64,503,14.60101867572156,466,1.2711864406779663,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,early_minus_late,True,,True
+monitoring_core_wake_pre_sleep,55,pre_sleep_4h_stress_high_fraction,monitoring core v0,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,high_fraction,True,,True
+monitoring_core_wake_pre_sleep,56,next_sleep_start_hour_local_wrapped,monitoring core v0,float64,524,11.03565365025467,472,0.0,schedule/context,wake/pre-sleep,next_sleep_boundary,start_hour_local_wrapped,True,,True
+monitoring_full_wake_pre_sleep,1,wake_hr_histogram_entropy,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,histogram_entropy,True,,True
+monitoring_full_wake_pre_sleep,2,wake_hr_iqr,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,iqr,True,,True
+monitoring_full_wake_pre_sleep,3,wake_hr_kurtosis,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,kurtosis,True,,True
+monitoring_full_wake_pre_sleep,4,wake_hr_mad,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mad,True,,True
+monitoring_full_wake_pre_sleep,5,wake_hr_max,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,max,True,,True
+monitoring_full_wake_pre_sleep,6,wake_hr_mean,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mean,True,,True
+monitoring_full_wake_pre_sleep,7,wake_hr_median,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,median,True,,True
+monitoring_full_wake_pre_sleep,8,wake_hr_min,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,min,True,,True
+monitoring_full_wake_pre_sleep,9,wake_hr_p10,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p10,True,,True
+monitoring_full_wake_pre_sleep,10,wake_hr_p25,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p25,True,,True
+monitoring_full_wake_pre_sleep,11,wake_hr_p75,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p75,True,,True
+monitoring_full_wake_pre_sleep,12,wake_hr_p90,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p90,True,,True
+monitoring_full_wake_pre_sleep,13,wake_hr_range,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,range,True,,True
+monitoring_full_wake_pre_sleep,14,wake_hr_skewness,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,skewness,True,,True
+monitoring_full_wake_pre_sleep,15,wake_hr_std,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,std,True,,True
+monitoring_full_wake_pre_sleep,16,wake_stress_histogram_entropy,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,histogram_entropy,True,,True
+monitoring_full_wake_pre_sleep,17,wake_stress_iqr,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,iqr,True,,True
+monitoring_full_wake_pre_sleep,18,wake_stress_kurtosis,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,kurtosis,True,,True
+monitoring_full_wake_pre_sleep,19,wake_stress_mad,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mad,True,,True
+monitoring_full_wake_pre_sleep,20,wake_stress_max,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,max,True,,True
+monitoring_full_wake_pre_sleep,21,wake_stress_mean,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mean,True,,True
+monitoring_full_wake_pre_sleep,22,wake_stress_median,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,median,True,,True
+monitoring_full_wake_pre_sleep,23,wake_stress_min,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,min,True,,True
+monitoring_full_wake_pre_sleep,24,wake_stress_p10,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p10,True,,True
+monitoring_full_wake_pre_sleep,25,wake_stress_p25,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p25,True,,True
+monitoring_full_wake_pre_sleep,26,wake_stress_p75,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p75,True,,True
+monitoring_full_wake_pre_sleep,27,wake_stress_p90,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p90,True,,True
+monitoring_full_wake_pre_sleep,28,wake_stress_range,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,range,True,,True
+monitoring_full_wake_pre_sleep,29,wake_stress_skewness,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,skewness,True,,True
+monitoring_full_wake_pre_sleep,30,wake_stress_std,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,std,True,,True
+monitoring_full_wake_pre_sleep,31,wake_stress_frac_active,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_active,True,,True
+monitoring_full_wake_pre_sleep,32,wake_stress_frac_high,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_high,True,,True
+monitoring_full_wake_pre_sleep,33,wake_stress_frac_low,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_low,True,,True
+monitoring_full_wake_pre_sleep,34,wake_stress_frac_medium,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_medium,True,,True
+monitoring_full_wake_pre_sleep,35,wake_stress_frac_resting,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_resting,True,,True
+monitoring_full_wake_pre_sleep,36,wake_hr_frac_below_zone1,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_below_zone1,True,,True
+monitoring_full_wake_pre_sleep,37,wake_hr_frac_zone1,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone1,True,,True
+monitoring_full_wake_pre_sleep,38,wake_hr_frac_zone2,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone2,True,,True
+monitoring_full_wake_pre_sleep,39,wake_hr_frac_zone3,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone3,True,,True
+monitoring_full_wake_pre_sleep,40,wake_hr_frac_zone4,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone4,True,,True
+monitoring_full_wake_pre_sleep,41,wake_hr_frac_zone5,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone5,True,,True
+monitoring_full_wake_pre_sleep,42,wake_hr_max_abs_jump,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,max_abs_jump,True,,True
+monitoring_full_wake_pre_sleep,43,wake_hr_mean_abs_diff,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,mean_abs_diff,True,,True
+monitoring_full_wake_pre_sleep,44,wake_hr_median_abs_diff,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,median_abs_diff,True,,True
+monitoring_full_wake_pre_sleep,45,wake_hr_roughness,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,roughness,True,,True
+monitoring_full_wake_pre_sleep,46,wake_hr_std_diff,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,std_diff,True,,True
+monitoring_full_wake_pre_sleep,47,wake_stress_max_abs_jump,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,max_abs_jump,True,,True
+monitoring_full_wake_pre_sleep,48,wake_stress_mean_abs_diff,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,mean_abs_diff,True,,True
+monitoring_full_wake_pre_sleep,49,wake_stress_median_abs_diff,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,median_abs_diff,True,,True
+monitoring_full_wake_pre_sleep,50,wake_stress_roughness,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,roughness,True,,True
+monitoring_full_wake_pre_sleep,51,wake_stress_std_diff,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,std_diff,True,,True
+monitoring_full_wake_pre_sleep,52,wake_hr_zone2_plus_episode_count,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_episode_count,True,,True
+monitoring_full_wake_pre_sleep,53,wake_hr_zone2_plus_fragmentation_index,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_fragmentation_index,True,,True
+monitoring_full_wake_pre_sleep,54,wake_hr_zone2_plus_has_event,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_has_event,True,,True
+monitoring_full_wake_pre_sleep,55,wake_hr_zone2_plus_max_duration_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_max_duration_minutes,True,,True
+monitoring_full_wake_pre_sleep,56,wake_hr_zone2_plus_mean_duration_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_mean_duration_minutes,True,,True
+monitoring_full_wake_pre_sleep,57,wake_hr_zone2_plus_time_to_first_minutes,monitoring full v0 catalog,float64,459,22.07130730050934,400,15.254237288135593,episodes/state structure,wake,wake_phase,zone2_plus_time_to_first_minutes,True,,True
+monitoring_full_wake_pre_sleep,58,wake_hr_zone2_plus_total_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_total_minutes,True,,True
+monitoring_full_wake_pre_sleep,59,wake_stress_active_episode_count,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_episode_count,True,,True
+monitoring_full_wake_pre_sleep,60,wake_stress_active_fragmentation_index,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_fragmentation_index,True,,True
+monitoring_full_wake_pre_sleep,61,wake_stress_active_max_duration_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_max_duration_minutes,True,,True
+monitoring_full_wake_pre_sleep,62,wake_stress_active_mean_duration_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_mean_duration_minutes,True,,True
+monitoring_full_wake_pre_sleep,63,wake_stress_active_time_to_first_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_time_to_first_minutes,True,,True
+monitoring_full_wake_pre_sleep,64,wake_stress_active_total_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_total_minutes,True,,True
+monitoring_full_wake_pre_sleep,65,wake_stress_high_episode_count,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_episode_count,True,,True
+monitoring_full_wake_pre_sleep,66,wake_stress_high_fragmentation_index,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_fragmentation_index,True,,True
+monitoring_full_wake_pre_sleep,67,wake_stress_high_has_event,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_has_event,True,,True
+monitoring_full_wake_pre_sleep,68,wake_stress_high_max_duration_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_max_duration_minutes,True,,True
+monitoring_full_wake_pre_sleep,69,wake_stress_high_mean_duration_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_mean_duration_minutes,True,,True
+monitoring_full_wake_pre_sleep,70,wake_stress_high_time_to_first_minutes,monitoring full v0 catalog,float64,552,6.281833616298811,472,0.0,episodes/state structure,wake,wake_phase,high_time_to_first_minutes,True,,True
+monitoring_full_wake_pre_sleep,71,wake_stress_high_total_minutes,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_total_minutes,True,,True
+monitoring_full_wake_pre_sleep,72,pre_sleep_4h_hr_early_minus_late,monitoring full v0 catalog,float64,503,14.60101867572156,466,1.2711864406779663,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,early_minus_late,True,,True
+monitoring_full_wake_pre_sleep,73,pre_sleep_4h_hr_mean,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,mean,True,,True
+monitoring_full_wake_pre_sleep,74,pre_sleep_4h_hr_p90,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,p90,True,,True
+monitoring_full_wake_pre_sleep,75,pre_sleep_4h_hr_std,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,std,True,,True
+monitoring_full_wake_pre_sleep,76,pre_sleep_4h_stress_early_minus_late,monitoring full v0 catalog,float64,503,14.60101867572156,466,1.2711864406779663,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,early_minus_late,True,,True
+monitoring_full_wake_pre_sleep,77,pre_sleep_4h_stress_high_fraction,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,high_fraction,True,,True
+monitoring_full_wake_pre_sleep,78,pre_sleep_4h_stress_mean,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,mean,True,,True
+monitoring_full_wake_pre_sleep,79,pre_sleep_4h_stress_p90,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,p90,True,,True
+monitoring_full_wake_pre_sleep,80,pre_sleep_4h_stress_std,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,std,True,,True
+monitoring_full_wake_pre_sleep,81,wake_q1_hr_mean,monitoring full v0 catalog,float64,537,8.828522920203735,472,0.0,relative windows,wake,wake_q1,hr_mean,True,,True
+monitoring_full_wake_pre_sleep,82,wake_q1_hr_p90,monitoring full v0 catalog,float64,537,8.828522920203735,472,0.0,relative windows,wake,wake_q1,hr_p90,True,,True
+monitoring_full_wake_pre_sleep,83,wake_q1_hr_std,monitoring full v0 catalog,float64,537,8.828522920203735,472,0.0,relative windows,wake,wake_q1,hr_std,True,,True
+monitoring_full_wake_pre_sleep,84,wake_q1_stress_high_fraction,monitoring full v0 catalog,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_high_fraction,True,,True
+monitoring_full_wake_pre_sleep,85,wake_q1_stress_mean,monitoring full v0 catalog,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_mean,True,,True
+monitoring_full_wake_pre_sleep,86,wake_q1_stress_p90,monitoring full v0 catalog,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_p90,True,,True
+monitoring_full_wake_pre_sleep,87,wake_q1_stress_std,monitoring full v0 catalog,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_std,True,,True
+monitoring_full_wake_pre_sleep,88,wake_q2_hr_mean,monitoring full v0 catalog,float64,528,10.35653650254669,472,0.0,relative windows,wake,wake_q2,hr_mean,True,,True
+monitoring_full_wake_pre_sleep,89,wake_q2_hr_p90,monitoring full v0 catalog,float64,528,10.35653650254669,472,0.0,relative windows,wake,wake_q2,hr_p90,True,,True
+monitoring_full_wake_pre_sleep,90,wake_q2_hr_std,monitoring full v0 catalog,float64,528,10.35653650254669,472,0.0,relative windows,wake,wake_q2,hr_std,True,,True
+monitoring_full_wake_pre_sleep,91,wake_q2_stress_high_fraction,monitoring full v0 catalog,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_high_fraction,True,,True
+monitoring_full_wake_pre_sleep,92,wake_q2_stress_mean,monitoring full v0 catalog,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_mean,True,,True
+monitoring_full_wake_pre_sleep,93,wake_q2_stress_p90,monitoring full v0 catalog,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_p90,True,,True
+monitoring_full_wake_pre_sleep,94,wake_q2_stress_std,monitoring full v0 catalog,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_std,True,,True
+monitoring_full_wake_pre_sleep,95,wake_q3_hr_mean,monitoring full v0 catalog,float64,527,10.526315789473683,472,0.0,relative windows,wake,wake_q3,hr_mean,True,,True
+monitoring_full_wake_pre_sleep,96,wake_q3_hr_p90,monitoring full v0 catalog,float64,527,10.526315789473683,472,0.0,relative windows,wake,wake_q3,hr_p90,True,,True
+monitoring_full_wake_pre_sleep,97,wake_q3_hr_std,monitoring full v0 catalog,float64,527,10.526315789473683,472,0.0,relative windows,wake,wake_q3,hr_std,True,,True
+monitoring_full_wake_pre_sleep,98,wake_q3_stress_high_fraction,monitoring full v0 catalog,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_high_fraction,True,,True
+monitoring_full_wake_pre_sleep,99,wake_q3_stress_mean,monitoring full v0 catalog,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_mean,True,,True
+monitoring_full_wake_pre_sleep,100,wake_q3_stress_p90,monitoring full v0 catalog,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_p90,True,,True
+monitoring_full_wake_pre_sleep,101,wake_q3_stress_std,monitoring full v0 catalog,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_std,True,,True
+monitoring_full_wake_pre_sleep,102,wake_q4_hr_mean,monitoring full v0 catalog,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,hr_mean,True,,True
+monitoring_full_wake_pre_sleep,103,wake_q4_hr_p90,monitoring full v0 catalog,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,hr_p90,True,,True
+monitoring_full_wake_pre_sleep,104,wake_q4_hr_std,monitoring full v0 catalog,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,hr_std,True,,True
+monitoring_full_wake_pre_sleep,105,wake_q4_stress_high_fraction,monitoring full v0 catalog,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_high_fraction,True,,True
+monitoring_full_wake_pre_sleep,106,wake_q4_stress_mean,monitoring full v0 catalog,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_mean,True,,True
+monitoring_full_wake_pre_sleep,107,wake_q4_stress_p90,monitoring full v0 catalog,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_p90,True,,True
+monitoring_full_wake_pre_sleep,108,wake_q4_stress_std,monitoring full v0 catalog,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_std,True,,True
+monitoring_full_wake_pre_sleep,109,pre_sleep_4h_hr_slope_per_hour,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,slope_per_hour,True,,True
+monitoring_full_wake_pre_sleep,110,pre_sleep_4h_hr_trend_r2,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,trend_r2,True,,True
+monitoring_full_wake_pre_sleep,111,pre_sleep_4h_stress_slope_per_hour,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,slope_per_hour,True,,True
+monitoring_full_wake_pre_sleep,112,pre_sleep_4h_stress_trend_r2,monitoring full v0 catalog,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,trend_r2,True,,True
+monitoring_full_wake_pre_sleep,113,wake_hr_slope_per_hour,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,slope_per_hour,True,,True
+monitoring_full_wake_pre_sleep,114,wake_hr_trend_r2,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,trend_r2,True,,True
+monitoring_full_wake_pre_sleep,115,wake_stress_slope_per_hour,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,slope_per_hour,True,,True
+monitoring_full_wake_pre_sleep,116,wake_stress_trend_r2,monitoring full v0 catalog,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,trend_r2,True,,True
+monitoring_full_wake_pre_sleep,117,wake_frac_hr_below_zone1_stress_high,monitoring full v0 catalog,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,wake_frac_hr_below_zone1_stress_high,True,,True
+monitoring_full_wake_pre_sleep,118,wake_frac_hr_zone2_plus_stress_high,monitoring full v0 catalog,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,wake_frac_hr_zone2_plus_stress_high,True,,True
+monitoring_full_wake_pre_sleep,119,wake_hr_diff_stress_diff_corr,monitoring full v0 catalog,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,diff_stress_diff_corr,True,,True
+monitoring_full_wake_pre_sleep,120,wake_hr_stress_corr,monitoring full v0 catalog,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,stress_corr,True,,True
+monitoring_full_wake_pre_sleep,121,wake_stress_hr_r2,monitoring full v0 catalog,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,hr_r2,True,,True
+monitoring_full_wake_pre_sleep,122,wake_stress_hr_slope,monitoring full v0 catalog,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,hr_slope,True,,True
+monitoring_full_wake_pre_sleep,123,next_sleep_start_hour_local_wrapped,monitoring full v0 catalog,float64,524,11.03565365025467,472,0.0,schedule/context,wake/pre-sleep,next_sleep_boundary,start_hour_local_wrapped,True,,True
+aggregate_plus_monitoring_full,1,wake_hr_histogram_entropy,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,histogram_entropy,True,,True
+aggregate_plus_monitoring_full,2,wake_hr_iqr,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,iqr,True,,True
+aggregate_plus_monitoring_full,3,wake_hr_kurtosis,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,kurtosis,True,,True
+aggregate_plus_monitoring_full,4,wake_hr_mad,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mad,True,,True
+aggregate_plus_monitoring_full,5,wake_hr_max,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,max,True,,True
+aggregate_plus_monitoring_full,6,wake_hr_mean,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mean,True,,True
+aggregate_plus_monitoring_full,7,wake_hr_median,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,median,True,,True
+aggregate_plus_monitoring_full,8,wake_hr_min,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,min,True,,True
+aggregate_plus_monitoring_full,9,wake_hr_p10,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p10,True,,True
+aggregate_plus_monitoring_full,10,wake_hr_p25,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p25,True,,True
+aggregate_plus_monitoring_full,11,wake_hr_p75,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p75,True,,True
+aggregate_plus_monitoring_full,12,wake_hr_p90,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p90,True,,True
+aggregate_plus_monitoring_full,13,wake_hr_range,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,range,True,,True
+aggregate_plus_monitoring_full,14,wake_hr_skewness,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,skewness,True,,True
+aggregate_plus_monitoring_full,15,wake_hr_std,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,std,True,,True
+aggregate_plus_monitoring_full,16,wake_stress_histogram_entropy,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,histogram_entropy,True,,True
+aggregate_plus_monitoring_full,17,wake_stress_iqr,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,iqr,True,,True
+aggregate_plus_monitoring_full,18,wake_stress_kurtosis,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,kurtosis,True,,True
+aggregate_plus_monitoring_full,19,wake_stress_mad,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mad,True,,True
+aggregate_plus_monitoring_full,20,wake_stress_max,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,max,True,,True
+aggregate_plus_monitoring_full,21,wake_stress_mean,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,mean,True,,True
+aggregate_plus_monitoring_full,22,wake_stress_median,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,median,True,,True
+aggregate_plus_monitoring_full,23,wake_stress_min,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,min,True,,True
+aggregate_plus_monitoring_full,24,wake_stress_p10,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p10,True,,True
+aggregate_plus_monitoring_full,25,wake_stress_p25,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p25,True,,True
+aggregate_plus_monitoring_full,26,wake_stress_p75,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p75,True,,True
+aggregate_plus_monitoring_full,27,wake_stress_p90,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,p90,True,,True
+aggregate_plus_monitoring_full,28,wake_stress_range,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,range,True,,True
+aggregate_plus_monitoring_full,29,wake_stress_skewness,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,skewness,True,,True
+aggregate_plus_monitoring_full,30,wake_stress_std,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,distribution/shape,wake,wake_phase,std,True,,True
+aggregate_plus_monitoring_full,31,wake_stress_frac_active,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_active,True,,True
+aggregate_plus_monitoring_full,32,wake_stress_frac_high,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_high,True,,True
+aggregate_plus_monitoring_full,33,wake_stress_frac_low,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_low,True,,True
+aggregate_plus_monitoring_full,34,wake_stress_frac_medium,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_medium,True,,True
+aggregate_plus_monitoring_full,35,wake_stress_frac_resting,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,stress state fractions,wake,wake_phase,frac_resting,True,,True
+aggregate_plus_monitoring_full,36,wake_hr_frac_below_zone1,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_below_zone1,True,,True
+aggregate_plus_monitoring_full,37,wake_hr_frac_zone1,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone1,True,,True
+aggregate_plus_monitoring_full,38,wake_hr_frac_zone2,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone2,True,,True
+aggregate_plus_monitoring_full,39,wake_hr_frac_zone3,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone3,True,,True
+aggregate_plus_monitoring_full,40,wake_hr_frac_zone4,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone4,True,,True
+aggregate_plus_monitoring_full,41,wake_hr_frac_zone5,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,HR MHR zones,wake,wake_phase,frac_zone5,True,,True
+aggregate_plus_monitoring_full,42,wake_hr_max_abs_jump,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,max_abs_jump,True,,True
+aggregate_plus_monitoring_full,43,wake_hr_mean_abs_diff,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,mean_abs_diff,True,,True
+aggregate_plus_monitoring_full,44,wake_hr_median_abs_diff,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,median_abs_diff,True,,True
+aggregate_plus_monitoring_full,45,wake_hr_roughness,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,roughness,True,,True
+aggregate_plus_monitoring_full,46,wake_hr_std_diff,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,std_diff,True,,True
+aggregate_plus_monitoring_full,47,wake_stress_max_abs_jump,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,max_abs_jump,True,,True
+aggregate_plus_monitoring_full,48,wake_stress_mean_abs_diff,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,mean_abs_diff,True,,True
+aggregate_plus_monitoring_full,49,wake_stress_median_abs_diff,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,median_abs_diff,True,,True
+aggregate_plus_monitoring_full,50,wake_stress_roughness,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,roughness,True,,True
+aggregate_plus_monitoring_full,51,wake_stress_std_diff,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,variability/gaps,wake,wake_phase,std_diff,True,,True
+aggregate_plus_monitoring_full,52,wake_hr_zone2_plus_episode_count,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_episode_count,True,,True
+aggregate_plus_monitoring_full,53,wake_hr_zone2_plus_fragmentation_index,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_fragmentation_index,True,,True
+aggregate_plus_monitoring_full,54,wake_hr_zone2_plus_has_event,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_has_event,True,,True
+aggregate_plus_monitoring_full,55,wake_hr_zone2_plus_max_duration_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_max_duration_minutes,True,,True
+aggregate_plus_monitoring_full,56,wake_hr_zone2_plus_mean_duration_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_mean_duration_minutes,True,,True
+aggregate_plus_monitoring_full,57,wake_hr_zone2_plus_time_to_first_minutes,monitoring full v0 plus aggregate context,float64,459,22.07130730050934,400,15.254237288135593,episodes/state structure,wake,wake_phase,zone2_plus_time_to_first_minutes,True,,True
+aggregate_plus_monitoring_full,58,wake_hr_zone2_plus_total_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,zone2_plus_total_minutes,True,,True
+aggregate_plus_monitoring_full,59,wake_stress_active_episode_count,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_episode_count,True,,True
+aggregate_plus_monitoring_full,60,wake_stress_active_fragmentation_index,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_fragmentation_index,True,,True
+aggregate_plus_monitoring_full,61,wake_stress_active_max_duration_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_max_duration_minutes,True,,True
+aggregate_plus_monitoring_full,62,wake_stress_active_mean_duration_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_mean_duration_minutes,True,,True
+aggregate_plus_monitoring_full,63,wake_stress_active_time_to_first_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_time_to_first_minutes,True,,True
+aggregate_plus_monitoring_full,64,wake_stress_active_total_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,active_total_minutes,True,,True
+aggregate_plus_monitoring_full,65,wake_stress_high_episode_count,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_episode_count,True,,True
+aggregate_plus_monitoring_full,66,wake_stress_high_fragmentation_index,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_fragmentation_index,True,,True
+aggregate_plus_monitoring_full,67,wake_stress_high_has_event,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_has_event,True,,True
+aggregate_plus_monitoring_full,68,wake_stress_high_max_duration_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_max_duration_minutes,True,,True
+aggregate_plus_monitoring_full,69,wake_stress_high_mean_duration_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_mean_duration_minutes,True,,True
+aggregate_plus_monitoring_full,70,wake_stress_high_time_to_first_minutes,monitoring full v0 plus aggregate context,float64,552,6.281833616298811,472,0.0,episodes/state structure,wake,wake_phase,high_time_to_first_minutes,True,,True
+aggregate_plus_monitoring_full,71,wake_stress_high_total_minutes,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,episodes/state structure,wake,wake_phase,high_total_minutes,True,,True
+aggregate_plus_monitoring_full,72,pre_sleep_4h_hr_early_minus_late,monitoring full v0 plus aggregate context,float64,503,14.60101867572156,466,1.2711864406779663,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,early_minus_late,True,,True
+aggregate_plus_monitoring_full,73,pre_sleep_4h_hr_mean,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,mean,True,,True
+aggregate_plus_monitoring_full,74,pre_sleep_4h_hr_p90,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,p90,True,,True
+aggregate_plus_monitoring_full,75,pre_sleep_4h_hr_std,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,std,True,,True
+aggregate_plus_monitoring_full,76,pre_sleep_4h_stress_early_minus_late,monitoring full v0 plus aggregate context,float64,503,14.60101867572156,466,1.2711864406779663,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,early_minus_late,True,,True
+aggregate_plus_monitoring_full,77,pre_sleep_4h_stress_high_fraction,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,high_fraction,True,,True
+aggregate_plus_monitoring_full,78,pre_sleep_4h_stress_mean,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,mean,True,,True
+aggregate_plus_monitoring_full,79,pre_sleep_4h_stress_p90,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,p90,True,,True
+aggregate_plus_monitoring_full,80,pre_sleep_4h_stress_std,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,recovery/deactivation,wake/pre-sleep,pre_sleep_4h,std,True,,True
+aggregate_plus_monitoring_full,81,wake_q1_hr_mean,monitoring full v0 plus aggregate context,float64,537,8.828522920203735,472,0.0,relative windows,wake,wake_q1,hr_mean,True,,True
+aggregate_plus_monitoring_full,82,wake_q1_hr_p90,monitoring full v0 plus aggregate context,float64,537,8.828522920203735,472,0.0,relative windows,wake,wake_q1,hr_p90,True,,True
+aggregate_plus_monitoring_full,83,wake_q1_hr_std,monitoring full v0 plus aggregate context,float64,537,8.828522920203735,472,0.0,relative windows,wake,wake_q1,hr_std,True,,True
+aggregate_plus_monitoring_full,84,wake_q1_stress_high_fraction,monitoring full v0 plus aggregate context,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_high_fraction,True,,True
+aggregate_plus_monitoring_full,85,wake_q1_stress_mean,monitoring full v0 plus aggregate context,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_mean,True,,True
+aggregate_plus_monitoring_full,86,wake_q1_stress_p90,monitoring full v0 plus aggregate context,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_p90,True,,True
+aggregate_plus_monitoring_full,87,wake_q1_stress_std,monitoring full v0 plus aggregate context,float64,536,8.998302207130731,472,0.0,relative windows,wake,wake_q1,stress_std,True,,True
+aggregate_plus_monitoring_full,88,wake_q2_hr_mean,monitoring full v0 plus aggregate context,float64,528,10.35653650254669,472,0.0,relative windows,wake,wake_q2,hr_mean,True,,True
+aggregate_plus_monitoring_full,89,wake_q2_hr_p90,monitoring full v0 plus aggregate context,float64,528,10.35653650254669,472,0.0,relative windows,wake,wake_q2,hr_p90,True,,True
+aggregate_plus_monitoring_full,90,wake_q2_hr_std,monitoring full v0 plus aggregate context,float64,528,10.35653650254669,472,0.0,relative windows,wake,wake_q2,hr_std,True,,True
+aggregate_plus_monitoring_full,91,wake_q2_stress_high_fraction,monitoring full v0 plus aggregate context,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_high_fraction,True,,True
+aggregate_plus_monitoring_full,92,wake_q2_stress_mean,monitoring full v0 plus aggregate context,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_mean,True,,True
+aggregate_plus_monitoring_full,93,wake_q2_stress_p90,monitoring full v0 plus aggregate context,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_p90,True,,True
+aggregate_plus_monitoring_full,94,wake_q2_stress_std,monitoring full v0 plus aggregate context,float64,526,10.69609507640068,470,0.423728813559322,relative windows,wake,wake_q2,stress_std,True,,True
+aggregate_plus_monitoring_full,95,wake_q3_hr_mean,monitoring full v0 plus aggregate context,float64,527,10.526315789473683,472,0.0,relative windows,wake,wake_q3,hr_mean,True,,True
+aggregate_plus_monitoring_full,96,wake_q3_hr_p90,monitoring full v0 plus aggregate context,float64,527,10.526315789473683,472,0.0,relative windows,wake,wake_q3,hr_p90,True,,True
+aggregate_plus_monitoring_full,97,wake_q3_hr_std,monitoring full v0 plus aggregate context,float64,527,10.526315789473683,472,0.0,relative windows,wake,wake_q3,hr_std,True,,True
+aggregate_plus_monitoring_full,98,wake_q3_stress_high_fraction,monitoring full v0 plus aggregate context,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_high_fraction,True,,True
+aggregate_plus_monitoring_full,99,wake_q3_stress_mean,monitoring full v0 plus aggregate context,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_mean,True,,True
+aggregate_plus_monitoring_full,100,wake_q3_stress_p90,monitoring full v0 plus aggregate context,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_p90,True,,True
+aggregate_plus_monitoring_full,101,wake_q3_stress_std,monitoring full v0 plus aggregate context,float64,526,10.69609507640068,472,0.0,relative windows,wake,wake_q3,stress_std,True,,True
+aggregate_plus_monitoring_full,102,wake_q4_hr_mean,monitoring full v0 plus aggregate context,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,hr_mean,True,,True
+aggregate_plus_monitoring_full,103,wake_q4_hr_p90,monitoring full v0 plus aggregate context,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,hr_p90,True,,True
+aggregate_plus_monitoring_full,104,wake_q4_hr_std,monitoring full v0 plus aggregate context,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,hr_std,True,,True
+aggregate_plus_monitoring_full,105,wake_q4_stress_high_fraction,monitoring full v0 plus aggregate context,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_high_fraction,True,,True
+aggregate_plus_monitoring_full,106,wake_q4_stress_mean,monitoring full v0 plus aggregate context,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_mean,True,,True
+aggregate_plus_monitoring_full,107,wake_q4_stress_p90,monitoring full v0 plus aggregate context,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_p90,True,,True
+aggregate_plus_monitoring_full,108,wake_q4_stress_std,monitoring full v0 plus aggregate context,float64,540,8.31918505942275,472,0.0,relative windows,wake,wake_q4,stress_std,True,,True
+aggregate_plus_monitoring_full,109,pre_sleep_4h_hr_slope_per_hour,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,slope_per_hour,True,,True
+aggregate_plus_monitoring_full,110,pre_sleep_4h_hr_trend_r2,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,trend_r2,True,,True
+aggregate_plus_monitoring_full,111,pre_sleep_4h_stress_slope_per_hour,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,slope_per_hour,True,,True
+aggregate_plus_monitoring_full,112,pre_sleep_4h_stress_trend_r2,monitoring full v0 plus aggregate context,float64,523,11.205432937181664,472,0.0,trends,wake/pre-sleep,pre_sleep_4h,trend_r2,True,,True
+aggregate_plus_monitoring_full,113,wake_hr_slope_per_hour,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,slope_per_hour,True,,True
+aggregate_plus_monitoring_full,114,wake_hr_trend_r2,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,trend_r2,True,,True
+aggregate_plus_monitoring_full,115,wake_stress_slope_per_hour,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,slope_per_hour,True,,True
+aggregate_plus_monitoring_full,116,wake_stress_trend_r2,monitoring full v0 plus aggregate context,float64,557,5.432937181663837,472,0.0,trends,wake,wake_phase,trend_r2,True,,True
+aggregate_plus_monitoring_full,117,wake_frac_hr_below_zone1_stress_high,monitoring full v0 plus aggregate context,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,wake_frac_hr_below_zone1_stress_high,True,,True
+aggregate_plus_monitoring_full,118,wake_frac_hr_zone2_plus_stress_high,monitoring full v0 plus aggregate context,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,wake_frac_hr_zone2_plus_stress_high,True,,True
+aggregate_plus_monitoring_full,119,wake_hr_diff_stress_diff_corr,monitoring full v0 plus aggregate context,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,diff_stress_diff_corr,True,,True
+aggregate_plus_monitoring_full,120,wake_hr_stress_corr,monitoring full v0 plus aggregate context,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,stress_corr,True,,True
+aggregate_plus_monitoring_full,121,wake_stress_hr_r2,monitoring full v0 plus aggregate context,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,hr_r2,True,,True
+aggregate_plus_monitoring_full,122,wake_stress_hr_slope,monitoring full v0 plus aggregate context,float64,556,5.602716468590832,472,0.0,HR/stress coupling,wake,wake_phase,hr_slope,True,,True
+aggregate_plus_monitoring_full,123,next_sleep_start_hour_local_wrapped,monitoring full v0 plus aggregate context,float64,524,11.03565365025467,472,0.0,schedule/context,wake/pre-sleep,next_sleep_boundary,start_hour_local_wrapped,True,,True
+aggregate_plus_monitoring_full,124,agg__totalSteps,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,totalSteps,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,125,agg__totalDistanceMeters,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,totalDistanceMeters,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,126,agg__activeKilocalories,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,activeKilocalories,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,127,agg__active_hours,monitoring full v0 plus aggregate context,Float64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,active_hours,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,128,agg__highly_active_hours,monitoring full v0 plus aggregate context,Float64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,highly_active_hours,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,129,agg__bodyBatteryLowest,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBatteryLowest,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,130,agg__bodyBatteryHighest,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBatteryHighest,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,131,agg__bodyBattery_chargedValue,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBattery_chargedValue,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,132,agg__bodyBattery_drainedValue,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBattery_drainedValue,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,133,agg__bodyBatteryNetBalance,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,bodyBatteryNetBalance,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,134,agg__floorsAscendedInMeters,monitoring full v0 plus aggregate context,Float64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,floorsAscendedInMeters,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,135,agg__floorsDescendedInMeters,monitoring full v0 plus aggregate context,Float64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,floorsDescendedInMeters,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,136,agg__weekday_name,monitoring full v0 plus aggregate context,str,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,weekday_name,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,137,agg__moderateIntensityMinutes,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,moderateIntensityMinutes,True,non_overlapping_day_context,True
+aggregate_plus_monitoring_full,138,agg__vigorousIntensityMinutes,monitoring full v0 plus aggregate context,Int64,582,1.1884550084889642,472,0.0,non_overlapping_day_context,aggregate,day_D,vigorousIntensityMinutes,True,non_overlapping_day_context,True

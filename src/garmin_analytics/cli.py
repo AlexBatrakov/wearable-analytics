@@ -26,6 +26,14 @@ from .monitoring import (
     materialize_monitoring_fit,
     select_monitoring_core_features,
 )
+from .modeling.stage4 import (
+    Stage4ModelingFrameConfig,
+    build_stage4_feature_set_catalog,
+    build_stage4_feature_sets_markdown,
+    build_stage4_modeling_frame_summary_markdown,
+    build_stage4_sleep_modeling_frame,
+    split_summary,
+)
 from .quality.quality import (
     QualityConfig,
     apply_quality_labels,
@@ -493,6 +501,167 @@ def build_monitoring_datasets_command(
     _info(f"Wrote {resolved_full_report}")
     _info(f"Wrote {resolved_full_catalog_csv}")
     _info(f"Wrote {resolved_full_catalog_md}")
+
+
+@app.command("build-stage4-modeling-frame")
+def build_stage4_modeling_frame_command(
+    monitoring_quality_path: Path = typer.Option(
+        None,
+        "--monitoring-quality-path",
+        help="Monitoring quality index parquet (default: data/processed/monitoring_quality_index.parquet)",
+    ),
+    monitoring_core_path: Path = typer.Option(
+        None,
+        "--monitoring-core-path",
+        help="Monitoring core feature parquet (default: data/processed/monitoring_features_core_v0.parquet)",
+    ),
+    monitoring_full_path: Path = typer.Option(
+        None,
+        "--monitoring-full-path",
+        help="Monitoring full feature parquet (default: data/processed/monitoring_features_full_v0.parquet)",
+    ),
+    sleep_path: Path = typer.Option(
+        None,
+        "--sleep-path",
+        help="Sleep parquet source (default: sleep_sanitized.parquet, fallback: sleep.parquet)",
+    ),
+    full_catalog_csv: Path = typer.Option(
+        None,
+        "--full-catalog-csv",
+        help="Monitoring full catalog CSV (default: reports/monitoring_features_full_catalog.csv)",
+    ),
+    daily_path: Path = typer.Option(
+        None,
+        "--daily-path",
+        help="Aggregate daily parquet (default: daily_sanitized.parquet, fallback: daily.parquet)",
+    ),
+    daily_quality_path: Path = typer.Option(
+        None,
+        "--daily-quality-path",
+        help="Daily quality parquet (default: data/processed/daily_quality.parquet)",
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        help="Stage 4 modeling frame parquet (default: data/processed/stage4_sleep_modeling_frame.parquet)",
+    ),
+    summary_report: Path = typer.Option(
+        None,
+        "--summary-report",
+        help="Markdown summary report (default: reports/stage4_sleep_modeling_frame_summary.md)",
+    ),
+    feature_sets_csv: Path = typer.Option(
+        None,
+        "--feature-sets-csv",
+        help="Feature-set catalog CSV (default: reports/stage4_sleep_modeling_feature_sets.csv)",
+    ),
+    feature_sets_md: Path = typer.Option(
+        None,
+        "--feature-sets-md",
+        help="Feature-set markdown summary (default: reports/stage4_sleep_modeling_feature_sets.md)",
+    ),
+    random_state: int = typer.Option(
+        42,
+        "--random-state",
+        help="Seed for random train/validation assignment inside the pre-test history",
+    ),
+) -> None:
+    """Build the Stage 4 sleep outcome modeling frame and audit artifacts."""
+    repo_root = get_repo_root()
+    processed_dir = get_processed_dir()
+    resolved_monitoring_quality = monitoring_quality_path or (processed_dir / "monitoring_quality_index.parquet")
+    resolved_monitoring_core = monitoring_core_path or (processed_dir / "monitoring_features_core_v0.parquet")
+    resolved_monitoring_full = monitoring_full_path or (processed_dir / "monitoring_features_full_v0.parquet")
+    resolved_sleep = sleep_path or _pick_existing_path(
+        processed_dir / "sleep_sanitized.parquet",
+        processed_dir / "sleep.parquet",
+    )
+    resolved_full_catalog = full_catalog_csv or (repo_root / "reports" / "monitoring_features_full_catalog.csv")
+    resolved_daily = daily_path or _pick_existing_path(
+        processed_dir / "daily_sanitized.parquet",
+        processed_dir / "daily.parquet",
+    )
+    resolved_daily_quality = daily_quality_path or (processed_dir / "daily_quality.parquet")
+    resolved_output = output or (processed_dir / "stage4_sleep_modeling_frame.parquet")
+    resolved_summary_report = summary_report or (repo_root / "reports" / "stage4_sleep_modeling_frame_summary.md")
+    resolved_feature_sets_csv = feature_sets_csv or (repo_root / "reports" / "stage4_sleep_modeling_feature_sets.csv")
+    resolved_feature_sets_md = feature_sets_md or (repo_root / "reports" / "stage4_sleep_modeling_feature_sets.md")
+
+    required_paths = [
+        resolved_monitoring_quality,
+        resolved_monitoring_core,
+        resolved_monitoring_full,
+        resolved_full_catalog,
+        resolved_daily_quality,
+    ]
+    if resolved_sleep is None:
+        _info("Missing sleep parquet source. Expected sleep_sanitized.parquet or sleep.parquet.")
+        raise typer.Exit(code=1)
+    if resolved_daily is None:
+        _info("Missing aggregate daily parquet source. Expected daily_sanitized.parquet or daily.parquet.")
+        raise typer.Exit(code=1)
+    required_paths.extend([resolved_sleep, resolved_daily])
+    for path in required_paths:
+        if not path.exists():
+            _info(f"Missing input: {path}")
+            raise typer.Exit(code=1)
+
+    result = build_stage4_sleep_modeling_frame(
+        monitoring_quality_df=pd.read_parquet(resolved_monitoring_quality),
+        monitoring_core_df=pd.read_parquet(resolved_monitoring_core),
+        monitoring_full_df=pd.read_parquet(resolved_monitoring_full),
+        sleep_df=pd.read_parquet(resolved_sleep),
+        full_catalog_df=pd.read_csv(resolved_full_catalog),
+        daily_df=pd.read_parquet(resolved_daily),
+        daily_quality_df=pd.read_parquet(resolved_daily_quality),
+        config=Stage4ModelingFrameConfig(random_state=random_state),
+    )
+    feature_catalog_df = build_stage4_feature_set_catalog(
+        result.frame,
+        result.feature_sets,
+        full_catalog_df=pd.read_csv(resolved_full_catalog),
+        aggregate_candidate_review=result.aggregate_candidate_review,
+    )
+
+    ensure_dir(resolved_output.parent)
+    result.frame.to_parquet(resolved_output, index=False, engine="pyarrow")
+
+    ensure_dir(resolved_feature_sets_csv.parent)
+    feature_catalog_df.to_csv(resolved_feature_sets_csv, index=False)
+
+    ensure_dir(resolved_feature_sets_md.parent)
+    resolved_feature_sets_md.write_text(
+        build_stage4_feature_sets_markdown(
+            result.frame,
+            result.feature_sets,
+            feature_catalog_df,
+            result.aggregate_candidate_review,
+        ),
+        encoding="utf-8",
+    )
+
+    ensure_dir(resolved_summary_report.parent)
+    resolved_summary_report.write_text(
+        build_stage4_modeling_frame_summary_markdown(
+            result,
+            output_path=_safe_relpath(resolved_output, repo_root),
+            feature_catalog_path=_safe_relpath(resolved_feature_sets_csv, repo_root),
+            feature_sets_md_path=_safe_relpath(resolved_feature_sets_md, repo_root),
+        ),
+        encoding="utf-8",
+    )
+
+    _info(f"Wrote {len(result.frame)} rows and {result.frame.shape[1]} columns to {resolved_output}")
+    for row in split_summary(result.frame).to_dict("records"):
+        _info(
+            f"Split {row['split']}: rows={row['rows']} "
+            f"eligible={row['eligible_rows']} primary_target={row['primary_target_rows']}"
+        )
+    for name, feature_set in result.feature_sets.items():
+        _info(f"Feature set {name}: {len(feature_set.columns)} columns")
+    _info(f"Wrote {resolved_summary_report}")
+    _info(f"Wrote {resolved_feature_sets_csv}")
+    _info(f"Wrote {resolved_feature_sets_md}")
 
 @app.command("build-daily")
 def build_daily() -> None:

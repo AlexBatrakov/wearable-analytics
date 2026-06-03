@@ -145,13 +145,18 @@ Those exclusions keep the modeling surface smaller and keep quality logic separa
 
 ## Public Analytical Layer
 
-The monitoring layer now has one public EDA notebook and companion report:
+The monitoring layer now has a public EDA notebook, a modeling-frame audit
+notebook, and companion reports:
 
 - `notebooks/07_monitoring_fit_eda.ipynb`: monitoring inventory, quality funnel, coverage diagnostics, feature-table overview, and a minute-level semantic-day browser.
 - `reports/monitoring_eda_summary.md`: compact EDA summary for the current refreshed monitoring run.
+- `notebooks/08_sleep_outcome_modeling_frame.ipynb`: target, eligibility, split, feature-set, and aggregate-candidate audit for the next sleep-outcome modeling pass.
+- `reports/stage4_sleep_modeling_frame_summary.md`: reusable `day D -> next sleep` modeling-frame contract.
+- `reports/stage4_sleep_modeling_feature_sets.md`: named aggregate, monitoring-core, monitoring-full, and combined feature spaces.
 
 Notebook 07 is the right entry point for understanding what the monitoring data contains and how quality filtering changes the usable row set.
 The notebook reads the current `data/processed/*.parquet` monitoring outputs directly and summarizes the feature families that can be evaluated in the next modeling pass.
+Notebook 08 then checks the modeling frame before any model family is fit.
 
 ## Stress Status Semantics
 
@@ -177,10 +182,11 @@ Stage 4 prepares and demonstrates the monitoring layer for downstream EDA and fu
 - explicit row-level quality and eligibility flags
 - compact and full candidate feature tables
 - a feature catalog with families, signals, phases, windows, and cautions
-- public EDA that keeps quality filtering, coverage, boundary confidence, and feature-readiness visible
+- a shared sleep-outcome modeling frame with target alignment, split policy, and named feature spaces
+- public EDA and frame-audit notebooks that keep quality filtering, coverage, boundary confidence, and feature-readiness visible
 
 The current public result is intentionally limited.
-The main value is a quality-aware monitoring feature layer and a defensible EDA bridge from raw minute-level series to future drift-aware modeling, not a production prediction claim.
+The main value is a quality-aware monitoring feature layer and a defensible bridge from raw minute-level series to future drift-aware modeling, not a production prediction claim.
 
 ## Limitations
 

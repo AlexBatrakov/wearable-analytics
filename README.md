@@ -81,9 +81,9 @@ If you open only one file after this page, start with [the case study](docs/case
 
 - Decoded **3,562** Garmin monitoring FIT files from **10,236** FIT files seen, with **0** decode errors skipped.
 - Built minute-level monitoring tables with **675,325** heart-rate rows and **889,323** stress rows.
-- Created **556** semantic sleep windows, a **589-row** monitoring quality index, and core/full feature tables for downstream EDA/modeling.
+- Created **556** semantic sleep windows, a **589-row** monitoring quality index, core/full feature tables, and a shared Stage 4 sleep-outcome modeling frame.
 - Keeps quality diagnostics separate from candidate features: `monitoring_quality_index.parquet` joins to feature tables on `analysis_window_id`.
-- Adds public monitoring EDA, a minute-level day browser, and feature-readiness diagnostics for the next modeling pass.
+- Adds public monitoring EDA, a minute-level day browser, and a modeling-frame audit before the next model-specific notebooks.
 
 ## Technical Appendix / Deep Dive
 
@@ -100,6 +100,7 @@ Start here for the portfolio narrative, then use the links below for technical d
 - [Stage 3](docs/stage3.md) - predictive modeling and lightweight statistical validation.
 - [Stage 4](docs/stage4_monitoring.md) - minute-level FIT monitoring extension, quality index, and feature table contract.
 - [Monitoring EDA notebook](notebooks/07_monitoring_fit_eda.ipynb) - public Stage 4 analytical layer for minute-level FIT data.
+- [Sleep outcome modeling frame notebook](notebooks/08_sleep_outcome_modeling_frame.ipynb) - Stage 4 target, eligibility, split, and feature-set audit.
 - [SQL layer](docs/sql_layer.md) - DuckDB mart, SQL query pack, and PostgreSQL showcase.
 - [CLI](docs/cli.md) - command reference, flags, outputs, and run order.
 - [Privacy](docs/privacy.md) - guardrails for local-only data and safe publishing boundaries.
@@ -131,6 +132,7 @@ garmin-analytics ingest-monitoring-fit
 garmin-analytics build-semantic-windows
 garmin-analytics build-monitoring-features
 garmin-analytics build-monitoring-datasets
+garmin-analytics build-stage4-modeling-frame
 ```
 
 Optional SQL layer:
