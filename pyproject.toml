@@ -24,7 +24,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = [
+  "pytest",
+  "matplotlib",
+]
 
 [project.scripts]
 garmin-analytics = "garmin_analytics.cli:app"
