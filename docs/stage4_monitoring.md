@@ -151,12 +151,21 @@ notebook, and companion reports:
 - `notebooks/07_monitoring_fit_eda.ipynb`: monitoring inventory, quality funnel, coverage diagnostics, feature-table overview, and a minute-level semantic-day browser.
 - `reports/monitoring_eda_summary.md`: compact EDA summary for the current refreshed monitoring run.
 - `notebooks/08_sleep_outcome_modeling_frame.ipynb`: target, eligibility, split, feature-set, and aggregate-candidate audit for the next sleep-outcome modeling pass.
+- `notebooks/09_sleep_stress_linear_models.ipynb`: configurable repeated-holdout linear-family regression pass for next-sleep average stress.
 - `reports/stage4_sleep_modeling_frame_summary.md`: reusable `day D -> next sleep` modeling-frame contract.
 - `reports/stage4_sleep_modeling_feature_sets.md`: named aggregate, monitoring-core, monitoring-full, and combined feature spaces.
+- `reports/stage4_sleep_stress_linear_models_summary.md`: validation-selected linear-model results and future-test dummy-baseline comparison.
+- `reports/stage4_sleep_stress_linear_model_leaderboard.csv`: validation leaderboard with future-test metrics for selected finalists.
+- `reports/stage4_sleep_stress_linear_model_grid.csv`: one-row-per-candidate audit of the linear experiment grid.
+- `reports/stage4_sleep_stress_linear_best_by_model_family.csv`: compact validation-ranked comparison across linear model families and dummy baselines.
+- `reports/stage4_sleep_stress_linear_rank1_feature_importance.csv`: coefficient and validation permutation-importance table for the validation rank-1 model.
+- `docs/img/stage4_linear_prediction_diagnostics.png`: diagnostic panel for the validation-selected rank-1 finalist.
+- `docs/img/stage4_linear_feature_importance.png`: rank-1 standardized-coefficient and validation permutation-importance diagnostic.
 
 Notebook 07 is the right entry point for understanding what the monitoring data contains and how quality filtering changes the usable row set.
 The notebook reads the current `data/processed/*.parquet` monitoring outputs directly and summarizes the feature families that can be evaluated in the next modeling pass.
 Notebook 08 then checks the modeling frame before any model family is fit.
+Notebook 09 makes the first modeling pass, exposes the main experiment controls and pre-fit cost plan, separates validation-only diagnostics from finalist refit, and keeps the final future test block reserved for validation-selected finalists. Its saved outputs preserve an expanded linear-family run, while the visible rerun defaults use a smaller preset with an explicit safety gate.
 
 ## Stress Status Semantics
 
