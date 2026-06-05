@@ -3,7 +3,7 @@
 Stage 4 adds a minute-level Garmin FIT monitoring layer on top of the aggregate JSON pipeline.
 It decodes heart-rate and stress monitoring records, aligns them to sleep-aware semantic windows, and publishes quality and feature tables for downstream EDA and modeling.
 
-This is a data-product extension. It does not claim a final predictive model or health recommendation.
+This is a data-product extension with a first exploratory linear-family modeling result. It is not a production predictor or health recommendation.
 
 ## Purpose
 
@@ -14,7 +14,7 @@ The FIT monitoring extension answers a different question:
 
 - what happened inside the sleep and wake windows, minute by minute?
 - how much usable HR/stress coverage exists within those windows?
-- which compact features are ready for leakage-aware downstream modeling?
+- which compact features support leakage-aware next-sleep modeling?
 
 ## Why Minute-Level Monitoring Matters
 
@@ -38,6 +38,7 @@ garmin-analytics ingest-monitoring-fit
 garmin-analytics build-semantic-windows
 garmin-analytics build-monitoring-features
 garmin-analytics build-monitoring-datasets
+garmin-analytics build-stage4-modeling-frame
 ```
 
 Current refreshed monitoring run:
@@ -163,7 +164,7 @@ notebook, and companion reports:
 - `docs/img/stage4_linear_feature_importance.png`: rank-1 standardized-coefficient and validation permutation-importance diagnostic.
 
 Notebook 07 is the right entry point for understanding what the monitoring data contains and how quality filtering changes the usable row set.
-The notebook reads the current `data/processed/*.parquet` monitoring outputs directly and summarizes the feature families that can be evaluated in the next modeling pass.
+The notebook reads the current `data/processed/*.parquet` monitoring outputs directly and summarizes the feature families available for modeling.
 Notebook 08 then checks the modeling frame before any model family is fit.
 Notebook 09 makes the first modeling pass, exposes the main experiment controls and pre-fit cost plan, separates validation-only diagnostics from finalist refit, and keeps the final future test block reserved for validation-selected finalists. Its saved outputs preserve an expanded linear-family run, while the visible rerun defaults use a smaller preset with an explicit safety gate.
 
@@ -182,9 +183,35 @@ Feature-state denominators exclude raw `-1`, raw `-2` without valid HR, and minu
 
 The curated `stress_frac_active` feature is therefore an activity/status proxy, not a Garmin numeric stress score.
 
+## Linear Modeling Snapshot
+
+Notebook 09 evaluates linear-family regression for next-sleep `avgSleepStress` using the Stage 4 `day D -> next sleep` modeling frame. The public headline uses validation-selected rank, not future-test selection.
+
+- Target: `target_avgSleepStress_next_sleep`
+- Feature set: `monitoring_full_wake_pre_sleep`
+- Candidate features: `123`
+- Expanded grid: `70,056` linear-family configurations
+- Split strategy: future test block held out; repeated random train/validation holdouts inside pre-test history
+- Validation-selected rank-1 model: `Huber alpha=30 eps=1.15 | top_spearman_90 | clip=z=4 | cal=linear`
+- Mean validation MAE: `3.610`
+- Future-test MAE: `5.336`
+- Future-test R2: `0.279`
+- Best future-test dummy baseline: `dummy_mean`, MAE `6.198`, R2 `-0.064`
+- Improvement vs best dummy: `0.863` MAE points, or `13.9%`
+
+![Stage 4 linear prediction diagnostics](img/stage4_linear_prediction_diagnostics.png)
+
+*Prediction diagnostics show a modest future-holdout signal, while residual drift and high-stress-night underprediction remain visible.*
+
+![Stage 4 linear feature importance](img/stage4_linear_feature_importance.png)
+
+*Rank-1 diagnostics emphasize recent wake stress, pre-sleep stress, and heart-rate variability features. These associations are plausible, but not causal evidence.*
+
+This linear pass is useful because it turns the monitoring layer into a transparent, leakage-aware modeling baseline. It is still a single-subject exploratory result and should not be read as a reliable night-level or medical predictor.
+
 ## Modeling Readiness
 
-Stage 4 prepares and demonstrates the monitoring layer for downstream EDA and future modeling by providing:
+Stage 4 demonstrates the monitoring layer by providing:
 
 - a canonical minute-level HR/stress table pair
 - sleep-aware analysis windows
@@ -192,10 +219,10 @@ Stage 4 prepares and demonstrates the monitoring layer for downstream EDA and fu
 - compact and full candidate feature tables
 - a feature catalog with families, signals, phases, windows, and cautions
 - a shared sleep-outcome modeling frame with target alignment, split policy, and named feature spaces
-- public EDA and frame-audit notebooks that keep quality filtering, coverage, boundary confidence, and feature-readiness visible
+- public EDA, frame-audit, and linear-model notebooks that keep quality filtering, coverage, boundary confidence, feature-readiness, validation selection, and future-test evaluation visible
 
-The current public result is intentionally limited.
-The main value is a quality-aware monitoring feature layer and a defensible bridge from raw minute-level series to future drift-aware modeling, not a production prediction claim.
+The current public result is intentionally scoped.
+Its main value is showing a defensible bridge from raw minute-level series to drift-aware modeling: a quality-aware feature layer, validation-selected tuning, dummy-baseline comparison, and a future-holdout readout without claiming production prediction performance.
 
 ## Limitations
 
@@ -203,4 +230,4 @@ The main value is a quality-aware monitoring feature layer and a defensible brid
 - HR/stress monitoring is included; activity FIT files, movement monitoring, and unknown FIT message families are out of scope.
 - Device-derived stress values are treated as Garmin status and summary signals, not as diagnostic measurements.
 - Semantic windows depend on observed Garmin sleep boundaries and can still be affected by off-wrist, charging, travel, or device gaps.
-- The monitoring feature tables are modeling-ready inputs, not a finished or validated prediction system.
+- The monitoring feature tables and linear baseline are modeling artifacts, not a finished production prediction system.

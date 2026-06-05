@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This project turns local Garmin wearable exports into a privacy-safe analytics workflow that is strong enough to use as a DS/DA portfolio case study. The raw source data is messy: nested JSON, FIT monitoring files, changing coverage over time, and model-derived device metrics that can be informative but are not always trustworthy at face value. To make the data usable, the project builds an end-to-end workflow: discover raw files, ingest them into parquet checkpoints, sanitize sensitive fields, generate a data dictionary, label day-level quality, and only then move into exploratory analysis. The final EDA is organized into four notebooks that cover coverage/readiness, time-series behavior, distributions and segmentation, and directed cross-metric relationships. A first Stage 3 pass then turns the strongest day-to-night finding into an explicit modeling task, while Stage 4 adds a minute-level HR/stress monitoring data product for future recovery-risk analysis. The result is a repo that demonstrates not only plotting ability, but also data hygiene, quality-aware analysis, careful interpretation of observational signals, and a compact time-aware modeling baseline.
+This project turns local Garmin wearable exports into a privacy-safe analytics workflow that is strong enough to use as a DS/DA portfolio case study. The raw source data is messy: nested JSON, FIT monitoring files, changing coverage over time, and model-derived device metrics that can be informative but are not always trustworthy at face value. To make the data usable, the project builds an end-to-end workflow: discover raw files, ingest them into parquet checkpoints, sanitize sensitive fields, generate a data dictionary, label day-level quality, and only then move into exploratory analysis and modeling. The public story now spans aggregate EDA, Stage 3 day-level validation/modeling, and a Stage 4 minute-level HR/stress monitoring layer that feeds a leakage-aware next-sleep modeling frame. The first Stage 4 linear-family regression pass predicts next-sleep `avgSleepStress` with a validation-selected Huber model, improving future-test MAE by **13.9%** versus the best dummy baseline. The result is a repo that demonstrates not only plotting ability, but also data hygiene, quality-aware analysis, careful interpretation of observational signals, multi-resolution feature engineering, and honest time-aware modeling.
 
 ## Problem Framing
 
@@ -38,8 +38,10 @@ flowchart LR
     G --> H["Stage 3 validation + modeling"]
     D --> I["Stage 4 FIT monitoring extension"]
     I --> J["Monitoring quality + feature tables"]
+    J --> L["Stage 4 modeling frame"]
+    L --> M["Linear-family regression"]
     H --> K["Curated findings + case study"]
-    J --> K
+    M --> K
 ```
 
 Core project stages:
@@ -47,7 +49,7 @@ Core project stages:
 - **Stage 1**: sanitize outputs, generate a data dictionary, and label day-level quality
 - **Stage 2**: run notebook-based EDA with explicit quality-aware analysis slices
 - **Stage 3**: validate and model `day D -> next-night` sleep outcomes with compact scikit-learn baselines
-- **Stage 4**: decode minute-level FIT monitoring records into sleep-aware HR/stress quality and feature tables
+- **Stage 4**: decode minute-level FIT monitoring records into sleep-aware HR/stress quality and feature tables, then evaluate a first linear-family next-sleep stress regression pass
 
 This matters because the repo is not just about “making charts”; it shows a complete local analytics workflow that can absorb imperfect personal data without pretending the imperfections do not exist.
 
@@ -159,10 +161,9 @@ Just as importantly, Stage 3 keeps a limited result instead of overstating it: c
 
 Stage 3 also adds a lightweight validation layer for the claims that matter most to the public narrative. Three of the strongest observational findings hold up under simple statistical checks: Saturday activity is significantly higher than Sunday activity, higher daytime awake stress is associated with lower next-night recovery, and higher daytime awake stress is also associated with higher next-night sleep stress. A fourth descriptive observation, that Tuesday is the highest-stress weekday, remains weaker and is better treated as an exploratory weekly-rhythm note than as a validated headline result.
 
-## Monitoring Extension
+## Stage 4 Monitoring and Modeling
 
-I discovered an unused minute-level FIT layer after the aggregate analysis.
-That changed the project from a purely day-level JSON case study into a multi-resolution wearable analytics pipeline.
+The Stage 4 extension changes the project from a purely day-level JSON case study into a multi-resolution wearable analytics pipeline.
 
 The monitoring extension decodes Garmin FIT monitoring files into minute-level heart-rate and stress tables, then aligns those records to semantic sleep/wake windows instead of midnight-to-midnight calendar days. The current refreshed run decoded **3,562** monitoring FIT files, producing **675,325** heart-rate rows and **889,323** stress rows.
 
@@ -170,11 +171,28 @@ The important design choice is separation of concerns:
 - `monitoring_quality_index.parquet` holds row-level plausibility, coverage, gap, boundary, and recovery-eligibility flags
 - `monitoring_features_core_v0.parquet` is a compact `589 x 93` starter feature table
 - `monitoring_features_full_v0.parquet` is a cleaned `589 x 243` feature table with a catalog for leakage-aware feature selection
-- `stage4_sleep_modeling_frame.parquet` aligns day-D monitoring and aggregate context with next-sleep targets for the upcoming modeling pipeline
+- `stage4_sleep_modeling_frame.parquet` aligns day-D monitoring and aggregate context with next-sleep targets
+- `stage4_sleep_stress_linear_models_summary.md` reports the first validation-selected linear-family next-sleep stress result
 
 Stress status values are handled explicitly. Raw `0..100` values are numeric Garmin stress readings, raw `-1` is an unmeasurable/status value, and raw `-2` is only treated as an active/large-motion proxy when the same minute also has valid heart rate.
 
-The public analytical layer now adds a monitoring EDA/day-browser notebook that shows what the minute-level layer contributes beyond daily aggregates: coverage diagnostics, stress-state composition, HR zones, within-day shape, and pre-sleep context. It also adds a modeling-frame audit notebook that checks target alignment, eligibility, split policy, and feature-set definitions before the model-specific Stage 4 notebooks.
+The public analytical layer now adds three Stage 4 notebooks. Notebook 07 shows what the minute-level layer contributes beyond daily aggregates: coverage diagnostics, stress-state composition, HR zones, within-day shape, and pre-sleep context. Notebook 08 checks target alignment, eligibility, split policy, and feature-set definitions. Notebook 09 runs a configurable linear-family regression pass for next-sleep average stress while keeping model selection based on repeated train/validation holdouts inside the pre-test history.
+
+The Stage 4 linear pass uses `target_avgSleepStress_next_sleep` and the `monitoring_full_wake_pre_sleep` feature set, which has **123** candidate features. The expanded grid evaluates **70,056** linear-family configurations. The validation-selected rank-1 model is:
+
+`Huber alpha=30 eps=1.15 | top_spearman_90 | clip=z=4 | cal=linear`
+
+On the reserved future block, that model reaches future-test MAE **5.336** and R2 **0.279**. The best dummy baseline is `dummy_mean` with future-test MAE **6.198**, so the selected Huber model improves MAE by **0.863** points, or **13.9%**.
+
+![Stage 4 linear prediction diagnostics](img/stage4_linear_prediction_diagnostics.png)
+
+*Stage 4 linear diagnostics: the future block shows useful signal versus a dummy baseline, but residual drift and high-stress-night underprediction are still visible.*
+
+![Stage 4 linear feature importance](img/stage4_linear_feature_importance.png)
+
+*Rank-1 feature diagnostics: recent wake stress, pre-sleep stress, and heart-rate variability features carry much of the linear association, but this is plausibility evidence, not causal or clinical evidence.*
+
+The result is best read as methodological progress, not as a production predictor. It shows that minute-level wearable signals can be transformed into a quality-aware modeling frame and evaluated honestly against simple baselines on a future holdout. It does not support medical decision-making, precise night-level prediction, or causal claims.
 
 ## What This Demonstrates as a DS/DA Project
 
@@ -186,7 +204,10 @@ This repo demonstrates more than one skill category:
 - **Quality-rule design**: strict and loose readiness labels make downstream analysis more defensible
 - **EDA structuring**: the analysis is split into coverage, time series, distributions/segmentation, and relationships rather than dumped into one notebook
 - **Time-aware modeling**: a compact Stage 3 modeling layer evaluates predictive tasks with contiguous train/validation/test splits rather than random shuffling
-- **Feature selection and honest benchmarking**: sparse linear models, nonlinear baselines, and negative results are all kept in view
+- **Leakage-aware target alignment**: Stage 4 aligns day-D monitoring windows to exact next-sleep targets and keeps sleep-phase predictors out of the default feature sets
+- **Validation-selected model tuning**: the Stage 4 linear pass chooses models by repeated holdout validation, then evaluates finalists once on a reserved future block
+- **Feature selection and honest benchmarking**: sparse models, linear-family grids, dummy baselines, nonlinear checks, and negative results are all kept in view
+- **Future-holdout evaluation**: the public modeling results separate pre-test tuning from future-test performance and call out drift when it appears
 - **Interpretation discipline**: findings are framed as observational and cross-checked with artifact review
 - **Reproducible repo organization**: CLI, tests, docs, and notebooks fit together as one workflow
 
@@ -194,7 +215,7 @@ That combination is exactly why the project is useful as a balanced DS/DA portfo
 
 ## Limitations
 
-This is still a single-subject observational dataset. The metrics are wearable-derived and partly model-based, not diagnostic measurements. Coverage gaps, charging periods, and off-wrist artifacts can still shape some day-level aggregates even after quality filtering. The findings are therefore useful as disciplined observational insights, not as causal or treatment claims.
+This is still a single-subject observational dataset. The metrics are wearable-derived and partly model-based, not diagnostic measurements. Coverage gaps, charging periods, and off-wrist artifacts can still shape some day-level aggregates even after quality filtering. The Stage 4 linear model is modest and still shows residual drift plus underprediction of extreme high-stress nights. The findings are therefore useful as disciplined observational insights and modeling baselines, not as causal, clinical, or treatment claims.
 
 ## Where to Go Deeper
 
@@ -204,6 +225,7 @@ This is still a single-subject observational dataset. The metrics are wearable-d
 - [Notebook 05: Stage 3 modeling baseline](../notebooks/05_modeling_recovery.ipynb)
 - [Notebook 07: monitoring FIT EDA](../notebooks/07_monitoring_fit_eda.ipynb)
 - [Notebook 08: sleep outcome modeling frame](../notebooks/08_sleep_outcome_modeling_frame.ipynb)
+- [Notebook 09: sleep stress linear models](../notebooks/09_sleep_stress_linear_models.ipynb)
 - [Pipeline overview](pipeline.md)
 - [Stage 1: sanitize, data dictionary, quality](stage1.md)
 - [Stage 2: EDA details](stage2.md)

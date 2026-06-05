@@ -357,7 +357,7 @@ Notes:
 
 ### build-stage4-modeling-frame
 
-Purpose: build the shared Stage 4 `day D -> next sleep` modeling frame, feature-set catalog, and audit summary before model-specific notebooks run.
+Purpose: build the shared Stage 4 `day D -> next sleep` modeling frame, feature-set catalog, and audit summary used by model-specific notebooks.
 
 ```bash
 garmin-analytics build-stage4-modeling-frame
@@ -398,7 +398,7 @@ Notes:
 
 - The primary continuous target is next-sleep `avgSleepStress`.
 - The default split is `past_random_valid_future_test`: future test block, random train/validation split inside earlier history.
-- The command builds the modeling contract only; model fitting happens in later notebooks.
+- The command builds the modeling contract only; model fitting happens in notebooks such as `notebooks/09_sleep_stress_linear_models.ipynb`.
 
 ## Module-mode equivalent
 

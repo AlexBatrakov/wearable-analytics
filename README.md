@@ -2,9 +2,17 @@
 
 [![CI](https://github.com/AlexBatrakov/wearable-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexBatrakov/wearable-analytics/actions/workflows/ci.yml)
 
-Garmin Wearable Analytics is a privacy-first case study built on local Garmin exports. It turns messy aggregate JSON and minute-level FIT monitoring files into curated parquet tables, applies sanitization and quality gating before analysis, and uses notebook-driven EDA to surface interpretable behavioral and recovery patterns. The project is packaged as a balanced DS/DA portfolio artifact that combines analytical depth with reproducible engineering practices.
+Garmin Wearable Analytics is a privacy-first case study built on local Garmin exports. It turns messy aggregate JSON and minute-level FIT monitoring files into curated parquet tables, applies sanitization and quality gating before analysis, and uses notebook-driven EDA plus time-aware modeling to surface interpretable behavioral and recovery patterns. The project is packaged as a balanced DS/DA portfolio artifact that combines analytical depth with reproducible engineering practices.
 
 If you open only one file after this page, start with [the case study](docs/case_study.md).
+
+## Portfolio Highlights
+
+- **677** daily Garmin rows across **2023-05-26 to 2026-05-18**, with privacy and quality gates before analysis.
+- **1.56M+** minute-level FIT monitoring observations: **675,325** heart-rate rows and **889,323** stress rows.
+- **589-row** Stage 4 monitoring quality index with separate core/full feature tables for leakage-aware modeling.
+- Stage 4 Huber regression improves future-test next-sleep stress MAE by **13.9%** versus the best dummy baseline.
+- Reproducible Python package with CLI workflows, SQL mart outputs, notebooks, docs, CI, and **114 passing tests** in the latest local run.
 
 ## What This Project Demonstrates
 
@@ -14,7 +22,8 @@ If you open only one file after this page, start with [the case study](docs/case
 - SQL-first analytics layer (`DuckDB` primary + compact `PostgreSQL` showcase) with CTE/window/view patterns
 - Structured EDA across coverage, time series, distributions, segmentation, and directed relationship analysis
 - Time-aware Stage 3 extension with statistical validation plus classification/regression baselines
-- Stage 4 monitoring extension with minute-level HR/stress FIT decoding, sleep-aware windows, quality index, and feature tables
+- Stage 4 monitoring extension with minute-level HR/stress FIT decoding, sleep-aware windows, quality index, feature tables, and time-aware regression modeling
+- Validation-selected Stage 4 linear-family modeling with repeated holdout tuning and a reserved future test block
 - Reproducible Python project organization with CLI workflows, tests, and CI-backed iteration
 
 ## Role Fit
@@ -27,9 +36,10 @@ If you open only one file after this page, start with [the case study](docs/case
 
 1. [Case study](docs/case_study.md)
 2. [Stage 4 monitoring extension](docs/stage4_monitoring.md)
-3. [Stage 3 (validation + modeling)](docs/stage3.md)
-4. [SQL layer (DuckDB + PostgreSQL showcase)](docs/sql_layer.md)
-5. [Relationships notebook](notebooks/04_eda_relationships.ipynb)
+3. [Stage 4 linear-model summary](reports/stage4_sleep_stress_linear_models_summary.md)
+4. [Notebook 09: sleep stress linear models](notebooks/09_sleep_stress_linear_models.ipynb)
+5. [Stage 3 (validation + modeling)](docs/stage3.md)
+6. [SQL layer (DuckDB + PostgreSQL showcase)](docs/sql_layer.md)
 
 ## Headline Findings
 
@@ -38,6 +48,7 @@ If you open only one file after this page, start with [the case study](docs/case
 - Weekly segmentation reveals stable routines: **Saturday** is the most active day, **Sunday** the least active, and **Tuesday** shows the highest median awake stress.
 - Higher **daytime stress** is associated with worse **next-night recovery**, supporting a day-to-night carryover story rather than same-row coincidence only.
 - **Sleep score** follows an optimum-duration pattern: mid-range sleep durations score best, while both shorter and longer nights tend to underperform.
+- Stage 4 linear-family regression finds a modest next-sleep `avgSleepStress` signal: the validation-selected Huber model improves future-test MAE by **13.9%** versus the best dummy baseline.
 
 ## Featured Visuals
 
@@ -53,13 +64,17 @@ If you open only one file after this page, start with [the case study](docs/case
 
 *The strongest directional relationship in the repo is a negative association between daytime stress and next-night recovery score.*
 
+<img src="docs/img/stage4_linear_prediction_diagnostics.png" alt="Stage 4 linear model prediction diagnostics" width="980" />
+
+*Stage 4 linear diagnostics show a real but modest next-sleep stress signal, with residual drift and high-stress-night underprediction still visible.*
+
 ## Project Structure
 
 - **Pipeline / ingestion**: discover raw Garmin exports, flatten nested JSON, and build parquet checkpoints
 - **Quality & privacy**: sanitize sensitive fields, generate a data dictionary, label day readiness, and isolate suspicious artifacts
 - **SQL layer (optional)**: build a DuckDB mart, run portfolio SQL packs, and mirror a compact schema in PostgreSQL
 - **EDA notebooks**: prepare coverage-aware slices, inspect time series, analyze distributions, and validate cross-metric relationships
-- **Monitoring extension**: decode minute-level FIT HR/stress records, build sleep-aware semantic windows, and publish quality/feature tables
+- **Monitoring extension**: decode minute-level FIT HR/stress records, build sleep-aware semantic windows, publish quality/feature tables, and evaluate a first linear-family next-sleep stress model
 - **Case study & docs**: recruiter-facing summary first, technical stage docs and notebooks second
 
 ## Results Snapshot
@@ -82,8 +97,11 @@ If you open only one file after this page, start with [the case study](docs/case
 - Decoded **3,562** Garmin monitoring FIT files from **10,236** FIT files seen, with **0** decode errors skipped.
 - Built minute-level monitoring tables with **675,325** heart-rate rows and **889,323** stress rows.
 - Created **556** semantic sleep windows, a **589-row** monitoring quality index, core/full feature tables, and a shared Stage 4 sleep-outcome modeling frame.
+- Evaluated **70,056** linear-family configurations for next-sleep `avgSleepStress` using `monitoring_full_wake_pre_sleep`.
+- Validation-selected rank-1 model: `Huber alpha=30 eps=1.15 | top_spearman_90 | clip=z=4 | cal=linear`.
+- Future-test result: MAE **5.336**, R2 **0.279**, versus best dummy MAE **6.198** (`13.9%` MAE improvement).
 - Keeps quality diagnostics separate from candidate features: `monitoring_quality_index.parquet` joins to feature tables on `analysis_window_id`.
-- Adds public monitoring EDA, a minute-level day browser, and a modeling-frame audit before the next model-specific notebooks.
+- The result is an exploratory single-subject baseline, not a production or medical predictor; residuals still show drift and high-stress-night underprediction.
 
 ## Technical Appendix / Deep Dive
 
@@ -98,9 +116,11 @@ Start here for the portfolio narrative, then use the links below for technical d
 - [Stage 1](docs/stage1.md) - sanitize, data dictionary, and quality labeling.
 - [Stage 2](docs/stage2.md) - EDA workflow and promoted observational findings.
 - [Stage 3](docs/stage3.md) - predictive modeling and lightweight statistical validation.
-- [Stage 4](docs/stage4_monitoring.md) - minute-level FIT monitoring extension, quality index, and feature table contract.
+- [Stage 4](docs/stage4_monitoring.md) - minute-level FIT monitoring extension, quality index, feature table contract, and linear modeling snapshot.
 - [Monitoring EDA notebook](notebooks/07_monitoring_fit_eda.ipynb) - public Stage 4 analytical layer for minute-level FIT data.
 - [Sleep outcome modeling frame notebook](notebooks/08_sleep_outcome_modeling_frame.ipynb) - Stage 4 target, eligibility, split, and feature-set audit.
+- [Sleep stress linear models notebook](notebooks/09_sleep_stress_linear_models.ipynb) - repeated-holdout linear-family regression for next-sleep average stress.
+- [Stage 4 linear-model summary](reports/stage4_sleep_stress_linear_models_summary.md) - validation-selected Huber result, dummy comparison, and caveats.
 - [SQL layer](docs/sql_layer.md) - DuckDB mart, SQL query pack, and PostgreSQL showcase.
 - [CLI](docs/cli.md) - command reference, flags, outputs, and run order.
 - [Privacy](docs/privacy.md) - guardrails for local-only data and safe publishing boundaries.

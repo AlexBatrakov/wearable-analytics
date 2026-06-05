@@ -1,7 +1,7 @@
 # Overview
 
 Garmin Wearable Analytics is a privacy-first local pipeline for Garmin exports.
-It turns raw aggregate JSON and minute-level FIT monitoring files into curated parquet datasets, applies sanitization and quality checks, and supports reproducible EDA.
+It turns raw aggregate JSON and minute-level FIT monitoring files into curated parquet datasets, applies sanitization and quality checks, and supports reproducible EDA plus time-aware modeling.
 
 Raw exports and `data/` artifacts are local-only.
 Sanitized outputs are the default boundary for analysis and sharing.
@@ -20,7 +20,7 @@ This repo now has two layers:
 - [Stage 1.5](sql_layer.md): optional SQL mart (DuckDB primary + PostgreSQL showcase)
 - [Stage 2](stage2.md): EDA notebooks and interpretation
 - [Stage 3](stage3.md): initial validation and modeling
-- [Stage 4](stage4_monitoring.md): minute-level FIT monitoring extension
+- [Stage 4](stage4_monitoring.md): minute-level FIT monitoring extension, sleep-outcome modeling frame, and first linear-family next-sleep stress model
 
 ## Documentation map
 
@@ -62,10 +62,14 @@ This repo now has two layers:
 	- `notebooks/02_eda_timeseries.ipynb`
 	- `notebooks/03_eda_distributions.ipynb` (distributions + segmented comparisons)
 	- `notebooks/04_eda_relationships.ipynb` (relationships + grouped correlations + targeted validation + lightweight artifact review)
-- **Notebook (Stage 3)**
+- **Notebooks (Stage 3)**
 	- `notebooks/05_modeling_recovery.ipynb` (validation + modeling baseline)
 	- `notebooks/06_statistical_validation.ipynb` (focused hypothesis checks for promoted findings)
-- **Monitoring outputs (Stage 4)**
+- **Notebooks (Stage 4)**
+	- `notebooks/07_monitoring_fit_eda.ipynb` (minute-level monitoring EDA and day browser)
+	- `notebooks/08_sleep_outcome_modeling_frame.ipynb` (target alignment, eligibility, split, and feature-set audit)
+	- `notebooks/09_sleep_stress_linear_models.ipynb` (first linear-family regression pass for next-sleep average stress)
+- **Monitoring and modeling outputs (Stage 4)**
 	- `data/processed/monitoring_heart_rate.parquet`
 	- `data/processed/monitoring_stress.parquet`
 	- `data/processed/semantic_sleep_windows.parquet`
@@ -77,6 +81,12 @@ This repo now has two layers:
 	- `reports/monitoring_*_summary.md`
 	- `reports/monitoring_features_full_catalog.csv`
 	- `reports/stage4_sleep_modeling_*`
+	- `reports/stage4_sleep_stress_linear_models_summary.md`
+	- `reports/stage4_sleep_stress_linear_model_leaderboard.csv`
+	- `reports/stage4_sleep_stress_linear_best_by_model_family.csv`
+	- `reports/stage4_sleep_stress_linear_rank1_feature_importance.csv`
+	- `docs/img/stage4_linear_prediction_diagnostics.png`
+	- `docs/img/stage4_linear_feature_importance.png`
 
 ## Quick run
 
