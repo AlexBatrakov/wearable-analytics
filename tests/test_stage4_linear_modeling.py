@@ -16,25 +16,33 @@ from garmin_analytics.modeling.stage4_linear import (
     build_stage4_linear_experiment_plan,
     build_stage4_linear_leaderboard_slices,
     build_stage4_linear_paired_deltas,
+    build_stage4_linear_shortlist,
+    build_stage4_linear_summary_markdown,
     candidate_grid_frame,
     compute_stage4_linear_feature_importance,
     dummy_baseline_value,
     evaluate_dummy_baselines,
+    evaluate_stage4_linear_contiguous_dev_diagnostic,
     finalize_stage4_linear_modeling,
     format_stage4_linear_experiment_plan,
     extract_stage4_linear_coefficient_table,
     fit_stage4_linear_candidate,
+    make_expanding_temporal_pretest_holdouts,
     make_repeated_pretest_holdouts,
+    make_stage4_linear_tuning_holdouts,
     plot_stage4_linear_prediction_diagnostics,
     plot_stage4_linear_hyperparameter_diagnostics,
     plot_stage4_linear_factor_comparisons,
     plot_stage4_linear_finalist_metric_comparison,
+    plot_stage4_linear_mixed_validation_family_comparison,
     plot_stage4_linear_validation_diagnostics,
     plot_stage4_linear_rank1_feature_importance,
     predict_stage4_linear,
     prepare_stage4_linear_model_frame,
     resolve_stage4_feature_columns,
+    refresh_stage4_linear_tuning_result_summaries,
     run_stage4_linear_modeling,
+    select_stage4_linear_future_test_candidates,
     select_stage4_features,
     split_stage4_model_frame,
     train_feature_scores,
@@ -113,6 +121,165 @@ def test_repeated_holdouts_use_only_pretest_history() -> None:
         assert len(valid_ids) == len(splits["valid"])
 
 
+def test_expanding_temporal_holdouts_are_contiguous_and_use_only_past_rows() -> None:
+    frame = _linear_frame()
+    model_frame = prepare_stage4_linear_model_frame(frame, ["signal", "noise", "weekday"])
+    splits = split_stage4_model_frame(model_frame)
+
+    holdouts = make_expanding_temporal_pretest_holdouts(
+        splits,
+        repeats=3,
+        validation_rows=5,
+    )
+    test_ids = set(splits["test"]["analysis_window_id"])
+
+    assert [len(holdout["train"]) for holdout in holdouts] == [25, 30, 35]
+    assert [len(holdout["valid"]) for holdout in holdouts] == [5, 5, 5]
+    for holdout in holdouts:
+        train = holdout["train"]
+        valid = holdout["valid"]
+        assert holdout["holdout_type"] == "temporal"
+        assert set(train["analysis_window_id"]).isdisjoint(test_ids)
+        assert set(valid["analysis_window_id"]).isdisjoint(test_ids)
+        assert pd.to_datetime(train["calendarDate"]).max() < pd.to_datetime(valid["calendarDate"]).min()
+        valid_dates = pd.to_datetime(valid["calendarDate"]).sort_values()
+        assert valid_dates.diff().dropna().eq(pd.Timedelta(days=1)).all()
+
+
+def test_mixed_tuning_adds_baseline_relative_metrics_and_combined_rank() -> None:
+    frame = _linear_frame()
+    feature_cols = ["signal", "noise", "weekday"]
+    splits = split_stage4_model_frame(prepare_stage4_linear_model_frame(frame, feature_cols))
+    candidates = [
+        Stage4LinearCandidate(
+            candidate_id=0,
+            model_kind="linear",
+            feature_selection=Stage4FeatureSelectionConfig(mode="none"),
+        ),
+        Stage4LinearCandidate(
+            candidate_id=1,
+            model_kind="ridge",
+            alpha=10.0,
+            feature_selection=Stage4FeatureSelectionConfig(mode="top_spearman", top_k=2),
+        ),
+    ]
+    config = Stage4LinearConfig(
+        holdout_strategy="mixed",
+        repeated_holdout_repeats=2,
+        temporal_holdout_repeats=2,
+        temporal_validation_rows=5,
+        shortlist_count=2,
+        shortlist_min_baseline_wins=1,
+    )
+
+    holdouts = make_stage4_linear_tuning_holdouts(splits, config=config)
+    repeats, summary = tune_stage4_linear_candidates(splits, feature_cols, candidates, config=config)
+
+    assert [holdout["holdout_type"] for holdout in holdouts] == [
+        "random",
+        "random",
+        "temporal",
+        "temporal",
+    ]
+    assert len(repeats) == 8
+    assert {"random", "temporal"} == set(repeats["holdout_type"])
+    assert {
+        "baseline_valid_mae",
+        "valid_mae_relative_to_baseline",
+        "valid_mae_skill_vs_baseline",
+        "valid_mae_delta_vs_baseline",
+        "valid_mae_beats_baseline",
+    } <= set(repeats.columns)
+    assert {
+        "random_mean_train_mae",
+        "random_mean_valid_mae",
+        "random_mean_relative_mae",
+        "random_relative_mae_std",
+        "temporal_mean_train_mae",
+        "temporal_mean_valid_mae",
+        "temporal_mean_relative_mae",
+        "temporal_worst_relative_mae",
+        "combined_rank_score",
+        "baseline_gate_pass",
+    } <= set(summary.columns)
+    assert summary["selection_metric"].eq("combined_rank_score").all()
+    assert summary["selection_rank"].tolist() == [1, 2]
+
+
+def test_shortlist_preserves_model_family_and_selector_representatives() -> None:
+    rows = []
+    candidate_id = 0
+    for family_idx, model_kind in enumerate(("linear", "ridge", "lasso", "elastic_net", "huber", "pls")):
+        for within_family in range(12):
+            selector = ("none", "top_spearman", "top_mutual_info")[within_family % 3]
+            rows.append(
+                {
+                    "candidate_id": candidate_id,
+                    "model_kind": model_kind,
+                    "feature_selection_mode": selector,
+                    "target_transform": ("none", "log1p")[within_family % 2],
+                    "calibration": ("none", "linear")[within_family % 2],
+                    "combined_rank_score": family_idx + within_family / 100.0,
+                    "selection_metric_value": family_idx + within_family / 100.0,
+                    "temporal_mean_relative_mae": 0.80 + within_family / 100.0,
+                    "temporal_worst_relative_mae": 0.90 + within_family / 100.0,
+                    "random_relative_mae_std": 0.01 + within_family / 1000.0,
+                    "baseline_gate_pass": family_idx < 2,
+                }
+            )
+            candidate_id += 1
+    summary = pd.DataFrame(rows)
+    config = Stage4LinearConfig(
+        shortlist_count=40,
+        shortlist_global_top_n=10,
+        shortlist_model_family_top_n=5,
+        shortlist_selector_top_n=1,
+        shortlist_temporal_mean_top_n=3,
+        shortlist_temporal_worst_top_n=3,
+        shortlist_random_stability_top_n=2,
+        shortlist_target_transform_top_n=2,
+        shortlist_calibration_top_n=2,
+    )
+
+    shortlist = build_stage4_linear_shortlist(summary, config=config)
+
+    assert len(shortlist) == 40
+    assert set(summary.nsmallest(10, "combined_rank_score")["candidate_id"]) <= set(shortlist["candidate_id"])
+    assert shortlist.loc[
+        shortlist["candidate_id"].isin(summary.nsmallest(10, "combined_rank_score")["candidate_id"]),
+        "shortlist_protected",
+    ].all()
+    family_counts = shortlist.groupby("model_kind").size()
+    assert family_counts.ge(5).all()
+    assert set(shortlist["feature_selection_mode"]) == {"none", "top_spearman", "top_mutual_info"}
+    assert shortlist.loc[
+        shortlist["shortlist_roles"].str.contains("model_family_representative"),
+        "shortlist_protected",
+    ].all()
+
+
+def test_future_test_candidate_selection_uses_validation_rank_and_family_representatives() -> None:
+    summary = pd.DataFrame(
+        [
+            {"candidate_id": 1, "selection_rank": 1, "model_kind": "ridge"},
+            {"candidate_id": 2, "selection_rank": 2, "model_kind": "ridge"},
+            {"candidate_id": 3, "selection_rank": 3, "model_kind": "huber"},
+            {"candidate_id": 4, "selection_rank": 4, "model_kind": "linear"},
+        ]
+    )
+
+    selected = select_stage4_linear_future_test_candidates(
+        summary,
+        global_top_n=2,
+        model_family_top_n=1,
+    )
+
+    assert selected["candidate_id"].tolist() == [1, 2, 3, 4]
+    assert "global_validation_leader" in selected.iloc[0]["future_test_selection_roles"]
+    assert "model_family_validation_leader" in selected.iloc[0]["future_test_selection_roles"]
+    assert selected.iloc[1]["future_test_selection_roles"] == "global_validation_leader"
+
+
 def test_feature_selection_is_fit_on_train_rows_only() -> None:
     frame = _linear_frame()
     train = frame.loc[frame[STAGE4_SPLIT_COLUMN] == "train"].copy()
@@ -135,6 +302,23 @@ def test_feature_selection_is_fit_on_train_rows_only() -> None:
     assert selected[0] == "signal"
     assert "valid_only_signal" not in selected
     assert detail.loc[detail["feature"] == "signal", "selected"].iloc[0]
+
+
+def test_feature_scores_impute_nullable_integer_with_fractional_median() -> None:
+    frame = _linear_frame(12)
+    frame["nullable_integer"] = pd.Series(
+        [1, 2, pd.NA, 3, 4, pd.NA, 5, 6, pd.NA, 7, 8, pd.NA],
+        dtype="Int64",
+    )
+
+    scores = train_feature_scores(
+        frame,
+        ["nullable_integer"],
+        config=Stage4LinearConfig(feature_set="toy"),
+    )
+
+    assert scores["feature"].tolist() == ["nullable_integer"]
+    assert np.isfinite(scores["mutual_info_train"]).all()
 
 
 def test_robust_z_clipper_fits_thresholds_from_training_values() -> None:
@@ -363,7 +547,7 @@ def test_feature_importance_plot_has_coefficient_and_permutation_panels() -> Non
             "feature": ["a", "b", "c"],
             "standardized_coefficient": [0.4, -0.2, 0.1],
             "abs_standardized_coefficient": [0.4, 0.2, 0.1],
-            "permutation_mae_increase_mean": [0.3, 0.1, -0.01],
+            "permutation_mae_increase_mean": [0.3, 0.1, 0.5],
             "permutation_mae_increase_std": [0.05, 0.02, 0.01],
             "rank": [1, 2, 3],
         }
@@ -372,8 +556,10 @@ def test_feature_importance_plot_has_coefficient_and_permutation_panels() -> Non
     figure = plot_stage4_linear_rank1_feature_importance(importance, top_n=2)
 
     assert len(figure.axes) == 2
-    assert figure.axes[0].get_title() == "Final-Refit Standardized Coefficients"
-    assert figure.axes[1].get_title() == "Validation Permutation Importance"
+    assert figure.axes[0].get_title() == "Dev-Refit Coefficients: Top Absolute Effects"
+    assert figure.axes[1].get_title() == "Contiguous Validation Permutation Importance"
+    assert {label.get_text() for label in figure.axes[0].get_yticklabels()} == {"a", "b"}
+    assert {label.get_text() for label in figure.axes[1].get_yticklabels()} == {"a", "c"}
     plt.close(figure)
 
 
@@ -490,15 +676,16 @@ def test_paired_deltas_match_otherwise_identical_candidates() -> None:
     figures = plot_stage4_linear_factor_comparisons(grid)
     assert set(figures) == {
         "calibration_comparison",
-        "feature_selection_comparison",
+        "feature_selection_distribution",
+        "feature_selection_paired_delta",
         "robust_clipping_comparison",
     }
     assert (
         figures["robust_clipping_comparison"].axes[0].get_title()
         == "Robust Clipping Paired Delta Distributions"
     )
-    assert figures["feature_selection_comparison"].axes[0].get_ylabel() == "Feature selector"
-    assert figures["feature_selection_comparison"].axes[1].get_ylabel() == "Feature selector"
+    assert figures["feature_selection_distribution"].axes[0].get_ylabel() == "Feature selector"
+    assert figures["feature_selection_paired_delta"].axes[0].get_ylabel() == "Feature selector"
     for figure in figures.values():
         plt.close(figure)
 
@@ -523,7 +710,7 @@ def test_feature_selector_boxplots_color_configs_by_selector_family() -> None:
     grid = candidate_grid_frame(build_stage4_linear_candidate_grid(Stage4LinearConfig(), spec))
     grid["mean_valid_mae"] = np.linspace(4.0, 5.0, len(grid))
 
-    figure = plot_stage4_linear_factor_comparisons(grid)["feature_selection_comparison"]
+    figure = plot_stage4_linear_factor_comparisons(grid)["feature_selection_distribution"]
     axis = figure.axes[0]
     color_by_label = {
         tick.get_text(): to_hex(patch.get_facecolor(), keep_alpha=False)
@@ -592,6 +779,11 @@ def test_validation_diagnostics_include_balanced_top_candidates_by_model_family(
 
     assert len(figures["top_candidates"].axes[0].patches) == 5
     assert len(figures["top_candidates_by_model_family"].axes[0].patches) == 7
+    if len(figures["top_candidates_by_model_family"].axes) > 1:
+        assert not any(
+            label.get_visible()
+            for label in figures["top_candidates_by_model_family"].axes[1].get_yticklabels()
+        )
     for figure in figures.values():
         plt.close(figure)
 
@@ -619,7 +811,14 @@ def test_hyperparameter_heatmaps_are_bounded_for_wide_grids() -> None:
 
     figures = plot_stage4_linear_hyperparameter_diagnostics(summary)
 
-    assert set(figures) == {"elastic_net", "huber"}
+    assert set(figures) == {
+        "elastic_net_alpha",
+        "elastic_net_l1_ratio",
+        "elastic_net",
+        "huber_alpha",
+        "huber_epsilon",
+        "huber",
+    }
     for figure in figures.values():
         width, height = figure.get_size_inches()
         assert width <= 10.0
@@ -675,8 +874,76 @@ def test_tuning_phase_is_separate_from_finalist_refit() -> None:
     } <= set(overall.columns)
     assert overall.loc[overall["model_kind"].eq("ridge"), "model_param_1"].iloc[0] == "alpha=1"
 
-    result = finalize_stage4_linear_modeling(tuning_result)
-    assert len(result.final_metrics.query("split == 'test'")) == 1
+    selected = select_stage4_linear_future_test_candidates(
+        tuning_result.tuning_summary,
+        global_top_n=1,
+        model_family_top_n=1,
+    )
+    result = finalize_stage4_linear_modeling(
+        tuning_result,
+        finalist_candidate_ids=selected["candidate_id"].tolist(),
+    )
+    assert len(result.final_metrics.query("split == 'test'")) == len(selected)
+    assert set(result.final_metrics["split"]) == {"dev", "test"}
+
+
+def test_refresh_tuning_result_reaggregates_stored_holdouts_without_changing_repeats() -> None:
+    config = Stage4LinearConfig(
+        feature_set="toy",
+        holdout_strategy="mixed",
+        repeated_holdout_repeats=1,
+        temporal_holdout_repeats=1,
+        temporal_validation_rows=5,
+    )
+    candidates = [
+        Stage4LinearCandidate(
+            candidate_id=0,
+            model_kind="ridge",
+            alpha=1.0,
+            feature_selection=Stage4FeatureSelectionConfig(mode="none"),
+        )
+    ]
+    tuning_result = tune_stage4_linear_modeling(
+        _linear_frame(),
+        _feature_catalog(),
+        config=config,
+        candidates=candidates,
+    )
+    original_repeats = tuning_result.tuning_repeats.copy()
+    tuning_result.tuning_summary = tuning_result.tuning_summary.drop(
+        columns=["temporal_mean_train_mae", "random_mean_train_mae"]
+    )
+
+    refreshed = refresh_stage4_linear_tuning_result_summaries(tuning_result)
+
+    pd.testing.assert_frame_equal(refreshed.tuning_repeats, original_repeats)
+    assert {"temporal_mean_train_mae", "random_mean_train_mae"} <= set(refreshed.tuning_summary.columns)
+    assert {"temporal_mean_train_mae", "random_mean_train_mae"} <= set(refreshed.dummy_tuning_summary.columns)
+
+
+def test_contiguous_dev_diagnostic_uses_only_dev_rows() -> None:
+    frame = _linear_frame()
+    feature_cols = ["signal", "noise", "weekday"]
+    splits = split_stage4_model_frame(prepare_stage4_linear_model_frame(frame, feature_cols))
+    candidate = Stage4LinearCandidate(
+        candidate_id=0,
+        model_kind="ridge",
+        alpha=1.0,
+        feature_selection=Stage4FeatureSelectionConfig(mode="none"),
+    )
+
+    metrics, predictions = evaluate_stage4_linear_contiguous_dev_diagnostic(
+        splits,
+        feature_cols,
+        candidate,
+        config=Stage4LinearConfig(calibration_cv_folds=2, calibration_min_rows=12),
+    )
+
+    assert metrics["split"].tolist() == ["dev_train", "dev_valid", "dev_test"]
+    assert set(predictions["split"]) == {"dev_train", "dev_valid", "dev_test"}
+    assert set(predictions["analysis_window_id"]).isdisjoint(set(splits["test"]["analysis_window_id"]))
+    ordered = predictions.sort_values("calendarDate")
+    assert ordered["split"].drop_duplicates().tolist() == ["dev_train", "dev_valid", "dev_test"]
 
 
 def test_parallel_tuning_matches_serial_tuning() -> None:
@@ -707,6 +974,47 @@ def test_parallel_tuning_matches_serial_tuning() -> None:
     _, parallel = tune_stage4_linear_candidates(splits, feature_cols, candidates, config=parallel_config)
 
     pd.testing.assert_frame_equal(serial, parallel)
+
+
+@pytest.mark.parametrize(
+    ("n_jobs", "parallel_backend"),
+    [(1, "loky"), (2, "threading")],
+)
+def test_tuning_progress_callback_reports_completed_candidate_evaluations(
+    n_jobs: int,
+    parallel_backend: str,
+) -> None:
+    frame = _linear_frame()
+    feature_cols = ["signal", "noise", "weekday"]
+    splits = split_stage4_model_frame(prepare_stage4_linear_model_frame(frame, feature_cols))
+    candidates = [
+        Stage4LinearCandidate(
+            candidate_id=0,
+            model_kind="linear",
+            feature_selection=Stage4FeatureSelectionConfig(mode="none"),
+        ),
+        Stage4LinearCandidate(
+            candidate_id=1,
+            model_kind="ridge",
+            alpha=1.0,
+            feature_selection=Stage4FeatureSelectionConfig(mode="none"),
+        ),
+    ]
+    progress: list[tuple[int, int]] = []
+
+    tune_stage4_linear_candidates(
+        splits,
+        feature_cols,
+        candidates,
+        config=Stage4LinearConfig(
+            repeated_holdout_repeats=2,
+            n_jobs=n_jobs,
+            parallel_backend=parallel_backend,
+        ),
+        progress_callback=lambda completed, total: progress.append((completed, total)),
+    )
+
+    assert progress == [(completed, 4) for completed in range(5)]
 
 
 def test_stage4_linear_candidate_supports_categorical_features() -> None:
@@ -806,6 +1114,8 @@ def test_run_stage4_linear_modeling_returns_finalist_and_dummy_leaderboard() -> 
     assert len(result.candidate_grid) == 2
     assert len(test_metrics) == 1
     assert set(dummy_test["model_kind"]) == {"dummy_mean", "dummy_median", "dummy_last"}
+    assert set(result.final_metrics["split"]) == {"dev", "test"}
+    assert set(result.dummy_metrics["split"]) == {"dev", "test"}
     assert "test_mae" in result.leaderboard.columns
     assert set(result.leaderboard_slices) == {
         "overall_validation",
@@ -824,6 +1134,7 @@ def test_run_stage4_linear_modeling_returns_finalist_and_dummy_leaderboard() -> 
     finalist_metric_fig = plot_stage4_linear_finalist_metric_comparison(
         result.final_metrics,
         result.dummy_metrics,
+        baseline_strategy=config.baseline_strategy,
     )
     assert len(finalist_metric_fig.axes) == 3
     plt.close(finalist_metric_fig)
@@ -843,6 +1154,45 @@ def test_run_stage4_linear_modeling_returns_finalist_and_dummy_leaderboard() -> 
     } <= set(validation_figures)
     for validation_fig in validation_figures.values():
         plt.close(validation_fig)
+    mixed_result = tune_stage4_linear_modeling(
+        frame,
+        catalog,
+        config=Stage4LinearConfig(
+            feature_set="toy",
+            holdout_strategy="mixed",
+            repeated_holdout_repeats=1,
+            temporal_holdout_repeats=1,
+            temporal_validation_rows=5,
+            calibration_cv_folds=2,
+            calibration_min_rows=12,
+        ),
+        candidates=candidates,
+    )
+    mixed_family_fig = plot_stage4_linear_mixed_validation_family_comparison(
+        mixed_result.tuning_summary,
+        mixed_result.dummy_tuning_summary,
+    )
+    assert len(mixed_family_fig.axes) == 2
+    plt.close(mixed_family_fig)
+    mixed_validation_figures = plot_stage4_linear_validation_diagnostics(
+        mixed_result.tuning_summary,
+        mixed_result.dummy_tuning_summary,
+        top_n=2,
+    )
+    assert "random_vs_temporal" in mixed_validation_figures
+    assert "feature_selector_distribution" not in mixed_validation_figures
+    assert len(mixed_validation_figures["validation_mae_distribution"].axes) == 2
+    assert len(mixed_validation_figures["performance_stability"].axes) == 2
+    assert not any(
+        label.get_visible()
+        for label in mixed_validation_figures["top_candidates_by_model_family"].axes[1].get_yticklabels()
+    )
+    assert all(
+        axis.collections
+        for axis in mixed_validation_figures["top_candidates_by_model_family"].axes
+    )
+    for mixed_validation_fig in mixed_validation_figures.values():
+        plt.close(mixed_validation_fig)
     hyperparameter_figures = plot_stage4_linear_hyperparameter_diagnostics(result.tuning_summary)
     assert "ridge" in hyperparameter_figures
     for hyperparameter_fig in hyperparameter_figures.values():
@@ -855,3 +1205,23 @@ def test_run_stage4_linear_modeling_returns_finalist_and_dummy_leaderboard() -> 
     ) == evaluate_dummy_baselines(split_stage4_model_frame(prepare_stage4_linear_model_frame(frame, ["signal"])), config=config)[0].query(
         "model_kind == 'dummy_last' and split == 'test'"
     )["baseline_value"].iloc[0]
+
+    result.dummy_metrics.loc[
+        result.dummy_metrics["split"].eq("test") & result.dummy_metrics["model_kind"].eq("dummy_mean"),
+        "mae",
+    ] = 0.1
+    result.dummy_metrics.loc[
+        result.dummy_metrics["split"].eq("test") & result.dummy_metrics["model_kind"].eq("dummy_median"),
+        "mae",
+    ] = 10.0
+    selected_model_test_mae = float(
+        result.final_metrics.loc[
+            result.final_metrics["split"].eq("test")
+            & result.final_metrics["validation_selection_rank"].eq(1),
+            "mae",
+        ].iloc[0]
+    )
+    summary_text = build_stage4_linear_summary_markdown(result)
+    assert "- Comparison baseline selected before fixed-future-holdout evaluation: `dummy_median`" in summary_text
+    assert f"improved fixed-future-holdout MAE by `{10.0 - selected_model_test_mae:.3f}` points" in summary_text
+    assert "versus the preselected `dummy_median` baseline" in summary_text

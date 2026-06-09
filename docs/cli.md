@@ -355,12 +355,14 @@ Notes:
 - `modeling_recovery_v0_eligible` is the baseline recovery-modeling eligibility flag.
 - Numeric stress features use raw Garmin stress `0..100`; HR-confirmed raw `-2` contributes only to active/status semantics.
 
-### build-stage4-modeling-frame
+### build-stage4-modeling-frame / build-stage4-sleep-modeling-frame
 
 Purpose: build the shared Stage 4 `day D -> next sleep` modeling frame, feature-set catalog, and audit summary used by model-specific notebooks.
 
 ```bash
 garmin-analytics build-stage4-modeling-frame
+# Equivalent explicit alias:
+garmin-analytics build-stage4-sleep-modeling-frame
 ```
 
 Expected inputs:
@@ -383,7 +385,7 @@ Expected outputs:
 Current refreshed run shape:
 
 ```text
-Wrote 589 rows and 295 columns to data/processed/stage4_sleep_modeling_frame.parquet
+Wrote 589 rows and 324 columns to data/processed/stage4_sleep_modeling_frame.parquet
 Split train: rows=330 eligible=330 primary_target=330
 Split valid: rows=71 eligible=71 primary_target=71
 Split test: rows=71 eligible=71 primary_target=71
@@ -391,13 +393,18 @@ Split not_eligible_or_missing_target: rows=117 eligible=0 primary_target=52
 Feature set aggregate_stage3_baseline: 33 columns
 Feature set monitoring_core_wake_pre_sleep: 56 columns
 Feature set monitoring_full_wake_pre_sleep: 123 columns
+Feature set monitoring_full_wake_pre_sleep_plus_prev_sleep: 133 columns
+Feature set monitoring_full_wake_pre_sleep_plus_history: 133 columns
+Feature set monitoring_full_wake_pre_sleep_plus_state: 148 columns
 Feature set aggregate_plus_monitoring_full: 138 columns
+Feature set monitoring_full_wake_pre_sleep_plus_state_plus_aggregate: 180 columns
 ```
 
 Notes:
 
 - The primary continuous target is next-sleep `avgSleepStress`.
-- The default split is `past_random_valid_future_test`: future test block, random train/validation split inside earlier history.
+- The frame retains the default `past_random_valid_future_test` labels for audit and simple experiments. Notebook 09 performs its definitive model selection through random plus expanding-temporal holdouts inside the development history.
+- State-context history features use prior observations only; `hist3_*` and `hist7_*` refer to the previous 3/7 analysis rows, not fixed calendar-day windows.
 - The command builds the modeling contract only; model fitting happens in notebooks such as `notebooks/09_sleep_stress_linear_models.ipynb`.
 
 ## Module-mode equivalent

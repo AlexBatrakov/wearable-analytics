@@ -4,7 +4,7 @@ This project follows:
 **discover -> ingest -> build -> sanitize -> quality -> SQL mart (optional) -> EDA -> validation/modeling**
 
 It also has a Stage 4 monitoring extension:
-**FIT decode -> semantic sleep/wake windows -> monitoring quality index -> core/full feature tables -> sleep-outcome modeling frame -> linear-family model report**
+**FIT decode -> semantic sleep/wake windows -> monitoring quality index -> core/full feature tables -> state-context sleep-outcome modeling frame -> mixed-validation linear-family model report**
 
 Why this matters: the repository is structured as a full local analytics workflow, not as a notebook-only analysis. That distinction is part of the portfolio value of the project.
 
@@ -110,7 +110,7 @@ Why this stage exists:
 - Uses sleep-aware windows instead of midnight-to-midnight physiological grouping.
 - Separates row-level quality/filtering from candidate modeling features.
 - Prepares monitoring features and a shared modeling frame for downstream EDA and time-aware modeling.
-- Supports the first Stage 4 linear-family regression notebook for next-sleep average stress while keeping the public claim modest and non-medical.
+- Supports the Stage 4 linear-family regression notebook with prior-only state context, random plus expanding-temporal validation, a representative-shortlist rerank, and a fixed future evaluation block while keeping the public claim modest and non-medical.
 
 ## EDA flow (Stage 2)
 

@@ -503,6 +503,7 @@ def build_monitoring_datasets_command(
     _info(f"Wrote {resolved_full_catalog_md}")
 
 
+@app.command("build-stage4-sleep-modeling-frame")
 @app.command("build-stage4-modeling-frame")
 def build_stage4_modeling_frame_command(
     monitoring_quality_path: Path = typer.Option(

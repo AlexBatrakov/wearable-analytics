@@ -28,8 +28,12 @@ STAGE4_IDENTITY_COLUMNS: tuple[str, ...] = (
 STAGE4_AUDIT_COLUMNS: tuple[str, ...] = (
     "next_sleep_status",
     "wake_end_source",
+    "sleep_start_utc",
+    "sleep_end_utc",
     "wake_start_utc",
     "wake_end_utc",
+    "sleep_start_local",
+    "wake_start_local",
     "sleep_duration_hours",
     "wake_duration_hours",
     "pre_sleep_4h_usable",
@@ -45,6 +49,224 @@ STAGE4_TARGET_COLUMNS: tuple[str, ...] = (
 )
 
 STAGE4_CONTEXT_FEATURES: tuple[str, ...] = (STAGE4_SLEEP_START_CONTEXT_FEATURE,)
+
+STAGE4_PREVIOUS_SLEEP_CONTEXT_FEATURES: tuple[str, ...] = (
+    "prev_sleep_hours",
+    "prev_sleep_avg_stress",
+    "prev_sleep_score",
+    "prev_sleep_recovery",
+    "prev_sleep_start_hour",
+    "wake_start_hour",
+    "prev_sleep_hr_mean",
+    "prev_sleep_hr_std",
+    "prev_sleep_stress_mean",
+    "prev_sleep_stress_p90",
+)
+
+STAGE4_SLEEP_HISTORY_FEATURES: tuple[str, ...] = (
+    "hist3_sleep_avg_stress",
+    "hist7_sleep_avg_stress",
+    "hist3_sleep_score",
+    "hist7_sleep_score",
+    "hist3_sleep_recovery",
+    "hist7_sleep_recovery",
+    "hist3_sleep_hours",
+    "hist7_sleep_hours",
+    "hist3_sleep_count",
+    "hist7_sleep_count",
+)
+
+STAGE4_STATE_DEVIATION_FEATURES: tuple[str, ...] = (
+    "dev7_wake_stress_mean",
+    "dev7_presleep_stress_mean",
+    "dev7_wake_hr_roughness",
+    "dev7_wake_high_stress_min",
+    "hist7_wake_count",
+)
+
+STAGE4_STATE_CONTEXT_FEATURES: tuple[str, ...] = (
+    *STAGE4_PREVIOUS_SLEEP_CONTEXT_FEATURES,
+    *STAGE4_SLEEP_HISTORY_FEATURES,
+    *STAGE4_STATE_DEVIATION_FEATURES,
+)
+
+STAGE4_STATE_CONTEXT_FEATURE_METADATA: Mapping[str, Mapping[str, object]] = {
+    "prev_sleep_hours": {
+        "family": "previous sleep context",
+        "phase": "sleep",
+        "window": "previous_sleep",
+        "metric": "duration_hours",
+        "candidate_model_feature": True,
+    },
+    "prev_sleep_avg_stress": {
+        "family": "previous sleep context",
+        "phase": "sleep",
+        "window": "previous_sleep",
+        "metric": "avg_sleep_stress",
+        "candidate_model_feature": True,
+    },
+    "prev_sleep_score": {
+        "family": "previous sleep context",
+        "phase": "sleep",
+        "window": "previous_sleep",
+        "metric": "overall_score",
+        "candidate_model_feature": True,
+    },
+    "prev_sleep_recovery": {
+        "family": "previous sleep context",
+        "phase": "sleep",
+        "window": "previous_sleep",
+        "metric": "recovery_score",
+        "candidate_model_feature": True,
+    },
+    "prev_sleep_start_hour": {
+        "family": "previous sleep context",
+        "phase": "sleep",
+        "window": "previous_sleep",
+        "metric": "start_hour_local_wrapped",
+        "candidate_model_feature": True,
+    },
+    "wake_start_hour": {
+        "family": "previous sleep context",
+        "phase": "wake",
+        "window": "wake_phase",
+        "metric": "start_hour_local_wrapped",
+        "candidate_model_feature": True,
+    },
+    "prev_sleep_hr_mean": {
+        "family": "previous sleep context",
+        "phase": "sleep",
+        "window": "previous_sleep",
+        "metric": "hr_mean",
+        "candidate_model_feature": True,
+    },
+    "prev_sleep_hr_std": {
+        "family": "previous sleep context",
+        "phase": "sleep",
+        "window": "previous_sleep",
+        "metric": "hr_std",
+        "candidate_model_feature": True,
+    },
+    "prev_sleep_stress_mean": {
+        "family": "previous sleep context",
+        "phase": "sleep",
+        "window": "previous_sleep",
+        "metric": "stress_mean",
+        "candidate_model_feature": True,
+    },
+    "prev_sleep_stress_p90": {
+        "family": "previous sleep context",
+        "phase": "sleep",
+        "window": "previous_sleep",
+        "metric": "stress_p90",
+        "candidate_model_feature": True,
+    },
+    "hist3_sleep_avg_stress": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_3_sleep_observations",
+        "metric": "avg_sleep_stress_mean",
+        "candidate_model_feature": True,
+    },
+    "hist7_sleep_avg_stress": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_7_sleep_observations",
+        "metric": "avg_sleep_stress_mean",
+        "candidate_model_feature": True,
+    },
+    "hist3_sleep_score": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_3_sleep_observations",
+        "metric": "overall_score_mean",
+        "candidate_model_feature": True,
+    },
+    "hist7_sleep_score": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_7_sleep_observations",
+        "metric": "overall_score_mean",
+        "candidate_model_feature": True,
+    },
+    "hist3_sleep_recovery": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_3_sleep_observations",
+        "metric": "recovery_score_mean",
+        "candidate_model_feature": True,
+    },
+    "hist7_sleep_recovery": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_7_sleep_observations",
+        "metric": "recovery_score_mean",
+        "candidate_model_feature": True,
+    },
+    "hist3_sleep_hours": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_3_sleep_observations",
+        "metric": "duration_hours_mean",
+        "candidate_model_feature": True,
+    },
+    "hist7_sleep_hours": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_7_sleep_observations",
+        "metric": "duration_hours_mean",
+        "candidate_model_feature": True,
+    },
+    "hist3_sleep_count": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_3_sleep_observations",
+        "metric": "available_observation_count",
+        "candidate_model_feature": True,
+    },
+    "hist7_sleep_count": {
+        "family": "recent sleep history",
+        "phase": "sleep",
+        "window": "prior_7_sleep_observations",
+        "metric": "available_observation_count",
+        "candidate_model_feature": True,
+    },
+    "dev7_wake_stress_mean": {
+        "family": "current day baseline deviation",
+        "phase": "wake",
+        "window": "wake_phase_minus_prior_7",
+        "metric": "stress_mean_delta",
+        "candidate_model_feature": True,
+    },
+    "dev7_presleep_stress_mean": {
+        "family": "current day baseline deviation",
+        "phase": "wake/pre-sleep",
+        "window": "pre_sleep_4h_minus_prior_7",
+        "metric": "stress_mean_delta",
+        "candidate_model_feature": True,
+    },
+    "dev7_wake_hr_roughness": {
+        "family": "current day baseline deviation",
+        "phase": "wake",
+        "window": "wake_phase_minus_prior_7",
+        "metric": "hr_roughness_delta",
+        "candidate_model_feature": True,
+    },
+    "dev7_wake_high_stress_min": {
+        "family": "current day baseline deviation",
+        "phase": "wake",
+        "window": "wake_phase_minus_prior_7",
+        "metric": "high_stress_minutes_delta",
+        "candidate_model_feature": True,
+    },
+    "hist7_wake_count": {
+        "family": "current day baseline deviation",
+        "phase": "wake/pre-sleep",
+        "window": "prior_7_wake_observations",
+        "metric": "available_observation_count",
+        "candidate_model_feature": True,
+    },
+}
 
 AGGREGATE_DIRECT_MONITORING_TOKENS: tuple[str, ...] = (
     "heartrate",
@@ -186,6 +408,39 @@ def _sleep_target_table(sleep_df: pd.DataFrame) -> pd.DataFrame:
     return sleep[keep].copy()
 
 
+def _sleep_previous_context_table(sleep_df: pd.DataFrame) -> pd.DataFrame:
+    required = {"sleepStartTimestampGMT", "sleepEndTimestampGMT"}
+    missing = sorted(required - set(sleep_df.columns))
+    if missing:
+        raise KeyError(f"sleep_df missing required columns: {missing}")
+
+    sleep = sleep_df.copy()
+    sleep["sleep_start_utc"] = _coerce_timestamp_utc(sleep["sleepStartTimestampGMT"])
+    sleep["sleep_end_utc"] = _coerce_timestamp_utc(sleep["sleepEndTimestampGMT"])
+    sleep = sleep.dropna(subset=["sleep_start_utc"]).copy()
+    _ensure_unique(sleep, "sleep_start_utc", "sleep")
+
+    start = sleep["sleep_start_utc"]
+    end = sleep["sleep_end_utc"]
+    sleep["prev_sleep_hours"] = ((end - start).dt.total_seconds() / 3600.0).where(end.notna() & (end > start))
+
+    rename = {
+        "avgSleepStress": "prev_sleep_avg_stress",
+        "sleepOverallScore": "prev_sleep_score",
+        "sleepRecoveryScore": "prev_sleep_recovery",
+    }
+    keep = ["sleep_start_utc", "prev_sleep_hours"]
+    for source_col, target_col in rename.items():
+        sleep[target_col] = (
+            pd.to_numeric(sleep[source_col], errors="coerce")
+            if source_col in sleep.columns
+            else pd.Series(np.nan, index=sleep.index, dtype="float64")
+        )
+        keep.append(target_col)
+
+    return sleep[keep].copy()
+
+
 def _wrapped_local_hour(series: pd.Series, *, wrap_at: float = 18.0) -> pd.Series:
     local = pd.to_datetime(series, errors="coerce")
     hour = (
@@ -203,10 +458,10 @@ def _prepare_monitoring_identity(quality_df: pd.DataFrame) -> pd.DataFrame:
             quality[column] = pd.NA
 
     quality["calendarDate"] = _normalize_calendar_date(quality["calendarDate"])
-    for column in ["next_sleep_start_utc", "wake_start_utc", "wake_end_utc"]:
+    for column in ["next_sleep_start_utc", "sleep_start_utc", "sleep_end_utc", "wake_start_utc", "wake_end_utc"]:
         if column in quality.columns:
             quality[column] = pd.to_datetime(quality[column], errors="coerce", utc=True)
-    for column in ["next_sleep_start_local"]:
+    for column in ["next_sleep_start_local", "sleep_start_local", "wake_start_local"]:
         if column in quality.columns:
             quality[column] = pd.to_datetime(quality[column], errors="coerce")
     if "modeling_recovery_v0_eligible" in quality.columns:
@@ -260,6 +515,131 @@ def _aggregate_modeling_features(
 
 def _append_context_features(columns: Sequence[str], frame: pd.DataFrame) -> tuple[str, ...]:
     return tuple(dict.fromkeys([*columns, *[column for column in STAGE4_CONTEXT_FEATURES if column in frame.columns]]))
+
+
+def _existing_feature_columns(columns: Sequence[str], frame: pd.DataFrame) -> tuple[str, ...]:
+    return tuple(column for column in columns if column in frame.columns)
+
+
+def _wrapped_hour_with_fallback(
+    frame: pd.DataFrame,
+    preferred_col: str,
+    fallback_col: str,
+) -> pd.Series:
+    preferred = (
+        _wrapped_local_hour(frame[preferred_col])
+        if preferred_col in frame.columns
+        else pd.Series(np.nan, index=frame.index, dtype="float64")
+    )
+    fallback = (
+        _wrapped_local_hour(frame[fallback_col])
+        if fallback_col in frame.columns
+        else pd.Series(np.nan, index=frame.index, dtype="float64")
+    )
+    return preferred.combine_first(fallback)
+
+
+def _prior_rolling_mean(series: pd.Series, window: int) -> pd.Series:
+    values = pd.to_numeric(series, errors="coerce")
+    return values.shift(1).rolling(window=window, min_periods=1).mean()
+
+
+def _prior_rolling_count(series: pd.Series, window: int) -> pd.Series:
+    values = pd.to_numeric(series, errors="coerce")
+    return values.shift(1).rolling(window=window, min_periods=1).count().fillna(0).astype("int64")
+
+
+def _add_previous_sleep_context_features(frame: pd.DataFrame, sleep_df: pd.DataFrame) -> pd.DataFrame:
+    out = frame.copy()
+    if "sleep_start_utc" in out.columns:
+        previous_sleep = _sleep_previous_context_table(sleep_df)
+        out = out.merge(previous_sleep, on="sleep_start_utc", how="left")
+    else:
+        for column in ["prev_sleep_hours", "prev_sleep_avg_stress", "prev_sleep_score", "prev_sleep_recovery"]:
+            out[column] = np.nan
+
+    if "sleep_duration_hours" in out.columns:
+        out["prev_sleep_hours"] = pd.to_numeric(out["prev_sleep_hours"], errors="coerce").combine_first(
+            pd.to_numeric(out["sleep_duration_hours"], errors="coerce")
+        )
+
+    out["prev_sleep_start_hour"] = _wrapped_hour_with_fallback(out, "sleep_start_local", "sleep_start_utc")
+    out["wake_start_hour"] = _wrapped_hour_with_fallback(out, "wake_start_local", "wake_start_utc")
+
+    sleep_monitoring_sources = {
+        "sleep_hr_mean": "prev_sleep_hr_mean",
+        "sleep_hr_std": "prev_sleep_hr_std",
+        "sleep_stress_mean": "prev_sleep_stress_mean",
+        "sleep_stress_p90": "prev_sleep_stress_p90",
+    }
+    for source_col, target_col in sleep_monitoring_sources.items():
+        out[target_col] = (
+            pd.to_numeric(out[source_col], errors="coerce")
+            if source_col in out.columns
+            else pd.Series(np.nan, index=out.index, dtype="float64")
+        )
+
+    return out
+
+
+def _add_recent_sleep_history_features(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.sort_values(["calendarDate", "analysis_window_id"]).copy()
+    source_to_prefix = {
+        "prev_sleep_avg_stress": "sleep_avg_stress",
+        "prev_sleep_score": "sleep_score",
+        "prev_sleep_recovery": "sleep_recovery",
+        "prev_sleep_hours": "sleep_hours",
+    }
+    for source_col, prefix in source_to_prefix.items():
+        source = (
+            out[source_col]
+            if source_col in out.columns
+            else pd.Series(np.nan, index=out.index, dtype="float64")
+        )
+        out[f"hist3_{prefix}"] = _prior_rolling_mean(source, 3)
+        out[f"hist7_{prefix}"] = _prior_rolling_mean(source, 7)
+
+    count_source = (
+        out["prev_sleep_hours"]
+        if "prev_sleep_hours" in out.columns
+        else pd.Series(np.nan, index=out.index, dtype="float64")
+    )
+    out["hist3_sleep_count"] = _prior_rolling_count(count_source, 3)
+    out["hist7_sleep_count"] = _prior_rolling_count(count_source, 7)
+    return out.sort_index()
+
+
+def _add_state_deviation_features(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.sort_values(["calendarDate", "analysis_window_id"]).copy()
+    source_to_target = {
+        "wake_stress_mean": "dev7_wake_stress_mean",
+        "pre_sleep_4h_stress_mean": "dev7_presleep_stress_mean",
+        "wake_hr_roughness": "dev7_wake_hr_roughness",
+        "wake_stress_high_total_minutes": "dev7_wake_high_stress_min",
+    }
+    count_frames: list[pd.Series] = []
+    for source_col, target_col in source_to_target.items():
+        source = (
+            pd.to_numeric(out[source_col], errors="coerce")
+            if source_col in out.columns
+            else pd.Series(np.nan, index=out.index, dtype="float64")
+        )
+        baseline = _prior_rolling_mean(source, 7)
+        out[target_col] = source - baseline
+        count_frames.append(_prior_rolling_count(source, 7))
+
+    out["hist7_wake_count"] = (
+        pd.concat(count_frames, axis=1).min(axis=1).fillna(0).astype("int64")
+        if count_frames
+        else pd.Series(0, index=out.index, dtype="int64")
+    )
+    return out.sort_index()
+
+
+def _add_state_context_features(frame: pd.DataFrame, sleep_df: pd.DataFrame) -> pd.DataFrame:
+    out = _add_previous_sleep_context_features(frame, sleep_df)
+    out = _add_recent_sleep_history_features(out)
+    return _add_state_deviation_features(out)
 
 
 def _monitoring_core_wake_pre_sleep_columns(core_df: pd.DataFrame, frame: pd.DataFrame) -> tuple[str, ...]:
@@ -443,13 +823,13 @@ def build_stage4_sleep_modeling_frame(
     full_catalog_df = full_catalog_df if full_catalog_df is not None else pd.DataFrame()
 
     frame = _prepare_monitoring_identity(monitoring_quality_df)
-    sleep_targets = _sleep_target_table(sleep_df)
+    sleep_targets = _sleep_target_table(sleep_df).rename(columns={"sleep_start_utc": "_target_sleep_start_utc"})
     frame = frame.merge(
         sleep_targets,
         left_on="next_sleep_start_utc",
-        right_on="sleep_start_utc",
+        right_on="_target_sleep_start_utc",
         how="left",
-    ).drop(columns=["sleep_start_utc"])
+    ).drop(columns=["_target_sleep_start_utc"])
     frame[STAGE4_SLEEP_START_CONTEXT_FEATURE] = _wrapped_local_hour(
         frame["next_sleep_start_local"]
     )
@@ -475,6 +855,7 @@ def build_stage4_sleep_modeling_frame(
         frame = frame.merge(aggregate_features, on="calendarDate", how="left")
 
     frame = frame.sort_values(["calendarDate", "analysis_window_id"]).reset_index(drop=True)
+    frame = _add_state_context_features(frame, sleep_df)
     frame[STAGE4_MODELING_ROW_COLUMN] = (
         pd.to_numeric(frame["modeling_recovery_v0_eligible"], errors="coerce").fillna(0).astype(int).eq(1)
         & pd.to_numeric(frame[STAGE4_PRIMARY_TARGET], errors="coerce").notna()
@@ -504,14 +885,26 @@ def build_stage4_sleep_modeling_frame(
         ]
     )
     combined_columns = tuple(dict.fromkeys([*full_columns, *combined_aggregate_columns]))
+    prev_sleep_columns = _existing_feature_columns(STAGE4_PREVIOUS_SLEEP_CONTEXT_FEATURES, frame)
+    history_columns = _existing_feature_columns(STAGE4_SLEEP_HISTORY_FEATURES, frame)
+    state_deviation_columns = _existing_feature_columns(STAGE4_STATE_DEVIATION_FEATURES, frame)
+    full_plus_prev_sleep_columns = tuple(dict.fromkeys([*full_columns, *prev_sleep_columns]))
+    full_plus_history_columns = tuple(dict.fromkeys([*full_columns, *history_columns]))
+    full_plus_state_columns = tuple(
+        dict.fromkeys([*full_columns, *prev_sleep_columns, *history_columns, *state_deviation_columns])
+    )
+    aggregate_baseline_columns = _append_context_features(
+        tuple(column for column in aggregate_columns if column in frame.columns),
+        frame,
+    )
+    full_plus_state_plus_aggregate_columns = tuple(
+        dict.fromkeys([*full_plus_state_columns, *aggregate_baseline_columns])
+    )
 
     feature_sets: dict[str, FeatureSetDefinition] = {
         "aggregate_stage3_baseline": FeatureSetDefinition(
             name="aggregate_stage3_baseline",
-            columns=_append_context_features(
-                tuple(column for column in aggregate_columns if column in frame.columns),
-                frame,
-            ),
+            columns=aggregate_baseline_columns,
             source="aggregate Stage 3",
             description="Day-D aggregate JSON-derived features from the existing Stage 3 recovery baseline, prefixed with agg__, plus sleep-start context.",
         ),
@@ -527,11 +920,35 @@ def build_stage4_sleep_modeling_frame(
             source="monitoring full v0 catalog",
             description="Catalog-filtered wake and pre-sleep monitoring candidates with missingness and constant-column filters.",
         ),
+        "monitoring_full_wake_pre_sleep_plus_prev_sleep": FeatureSetDefinition(
+            name="monitoring_full_wake_pre_sleep_plus_prev_sleep",
+            columns=full_plus_prev_sleep_columns,
+            source="monitoring full v0 plus previous sleep context",
+            description="Full monitoring wake/pre-sleep candidates plus compact context from the sleep episode before the wake window.",
+        ),
+        "monitoring_full_wake_pre_sleep_plus_history": FeatureSetDefinition(
+            name="monitoring_full_wake_pre_sleep_plus_history",
+            columns=full_plus_history_columns,
+            source="monitoring full v0 plus recent sleep history",
+            description="Full monitoring wake/pre-sleep candidates plus prior-only rolling sleep history over recent observations.",
+        ),
+        "monitoring_full_wake_pre_sleep_plus_state": FeatureSetDefinition(
+            name="monitoring_full_wake_pre_sleep_plus_state",
+            columns=full_plus_state_columns,
+            source="monitoring full v0 plus state context",
+            description="Full monitoring wake/pre-sleep candidates plus previous-sleep context, recent sleep history, and current-day deviations from prior baselines.",
+        ),
         "aggregate_plus_monitoring_full": FeatureSetDefinition(
             name="aggregate_plus_monitoring_full",
             columns=combined_columns,
             source="monitoring full v0 plus aggregate context",
             description="Full monitoring wake/pre-sleep candidates plus non-overlapping aggregate day-context features.",
+        ),
+        "monitoring_full_wake_pre_sleep_plus_state_plus_aggregate": FeatureSetDefinition(
+            name="monitoring_full_wake_pre_sleep_plus_state_plus_aggregate",
+            columns=full_plus_state_plus_aggregate_columns,
+            source="monitoring full v0 plus state and aggregate context",
+            description="Widest legal Stage 4 candidate pool: full monitoring wake/pre-sleep, state-context features, and aggregate Stage 3 baseline columns.",
         ),
     }
 
@@ -661,6 +1078,7 @@ def build_stage4_feature_set_catalog(
             model_values = frame.loc[modeling_mask, feature]
             full_meta = full_lookup.get(feature, {})
             aggregate_meta = aggregate_lookup.get(feature, {})
+            state_context_meta = STAGE4_STATE_CONTEXT_FEATURE_METADATA.get(feature, {})
             context_meta = {
                 "family": "schedule/context",
                 "phase": "wake/pre-sleep",
@@ -679,11 +1097,23 @@ def build_stage4_feature_set_catalog(
                     "missing_pct": float(values.isna().mean() * 100.0),
                     "modeling_non_null_count": int(model_values.notna().sum()),
                     "modeling_missing_pct": float(model_values.isna().mean() * 100.0) if len(model_values) else np.nan,
-                    "family": context_meta.get("family", full_meta.get("family", aggregate_meta.get("review_group", "aggregate"))),
-                    "phase": context_meta.get("phase", full_meta.get("phase", "aggregate")),
-                    "window": context_meta.get("window", full_meta.get("window", "day_D")),
-                    "metric": context_meta.get("metric", full_meta.get("metric", feature.removeprefix("agg__"))),
-                    "candidate_model_feature": context_meta.get("candidate_model_feature", full_meta.get("candidate_model_feature", True)),
+                    "family": context_meta.get(
+                        "family",
+                        state_context_meta.get(
+                            "family",
+                            full_meta.get("family", aggregate_meta.get("review_group", "aggregate")),
+                        ),
+                    ),
+                    "phase": context_meta.get("phase", state_context_meta.get("phase", full_meta.get("phase", "aggregate"))),
+                    "window": context_meta.get("window", state_context_meta.get("window", full_meta.get("window", "day_D"))),
+                    "metric": context_meta.get(
+                        "metric",
+                        state_context_meta.get("metric", full_meta.get("metric", feature.removeprefix("agg__"))),
+                    ),
+                    "candidate_model_feature": context_meta.get(
+                        "candidate_model_feature",
+                        state_context_meta.get("candidate_model_feature", full_meta.get("candidate_model_feature", True)),
+                    ),
                     "aggregate_review_group": aggregate_meta.get("review_group", ""),
                     "included_in_aggregate_plus_monitoring_full": aggregate_meta.get(
                         "include_in_aggregate_plus_monitoring_full",
@@ -712,7 +1142,7 @@ def build_stage4_feature_sets_markdown(
         "",
         "## Aggregate Candidate Review",
         "",
-        "Aggregate columns are prefixed with `agg__` in the modeling frame. Sleep-start local time is included as schedule context. Direct wake HR/stress overlaps remain available in the aggregate-only baseline, while the combined feature set adds only non-overlapping aggregate day context.",
+        "Aggregate columns are prefixed with `agg__` in the modeling frame. Sleep-start local time is included as schedule context. Direct wake HR/stress overlaps remain available in the aggregate-only baseline, while the combined feature set adds only non-overlapping aggregate day context. The monitoring state-context variants add previous sleep, prior-only sleep history, and prior-baseline deviation features without changing the original feature sets. `hist3_*` and `hist7_*` use prior analysis observations rather than literal calendar-day windows.",
         "",
     ]
     if aggregate_candidate_review.empty:
@@ -822,6 +1252,8 @@ def build_stage4_modeling_frame_summary_markdown(
         "",
         "- Monitoring predictors are limited to wake and pre-sleep columns.",
         "- Sleep-phase monitoring columns remain out of the predictor feature sets in this frame.",
+        "- Previous-sleep context features use the completed sleep before the wake window, not the modeled next sleep.",
+        "- Recent-history and current-day deviation features use prior rows only, with partial windows allowed and first-observation means left missing. `hist3_*` and `hist7_*` refer to prior analysis rows, not fixed calendar-day windows.",
         "- Quality and boundary diagnostics are retained for audit, not as ordinary predictors.",
         "- Sleep-start local time is included as schedule context because the wake/pre-sleep feature window is defined at sleep onset.",
         "- Next-sleep duration/opportunity remains target/audit context, not an ordinary predictor.",

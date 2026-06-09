@@ -22,6 +22,7 @@ def test_cli_help_lists_commands() -> None:
         "build-monitoring-features",
         "build-monitoring-datasets",
         "build-stage4-modeling-frame",
+        "build-stage4-sleep-modeling-frame",
         "build-daily",
         "sanitize",
         "build-sql-mart",

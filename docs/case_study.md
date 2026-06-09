@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This project turns local Garmin wearable exports into a privacy-safe analytics workflow that is strong enough to use as a DS/DA portfolio case study. The raw source data is messy: nested JSON, FIT monitoring files, changing coverage over time, and model-derived device metrics that can be informative but are not always trustworthy at face value. To make the data usable, the project builds an end-to-end workflow: discover raw files, ingest them into parquet checkpoints, sanitize sensitive fields, generate a data dictionary, label day-level quality, and only then move into exploratory analysis and modeling. The public story now spans aggregate EDA, Stage 3 day-level validation/modeling, and a Stage 4 minute-level HR/stress monitoring layer that feeds a leakage-aware next-sleep modeling frame. The first Stage 4 linear-family regression pass predicts next-sleep `avgSleepStress` with a validation-selected Huber model, improving future-test MAE by **13.9%** versus the best dummy baseline. The result is a repo that demonstrates not only plotting ability, but also data hygiene, quality-aware analysis, careful interpretation of observational signals, multi-resolution feature engineering, and honest time-aware modeling.
+This project turns local Garmin wearable exports into a privacy-safe analytics workflow that is strong enough to use as a DS/DA portfolio case study. The raw source data is messy: nested JSON, FIT monitoring files, changing coverage over time, and model-derived device metrics that can be informative but are not always trustworthy at face value. To make the data usable, the project builds an end-to-end workflow: discover raw files, ingest them into parquet checkpoints, sanitize sensitive fields, generate a data dictionary, label day-level quality, and only then move into exploratory analysis and modeling. The public story now spans aggregate EDA, Stage 3 day-level validation/modeling, and a Stage 4 minute-level HR/stress monitoring layer that feeds a leakage-aware next-sleep modeling frame. The Stage 4 linear-family regression pass predicts next-sleep `avgSleepStress` with a temporal-validation-selected Huber model, improving fixed-future-holdout MAE by **15.8%** versus a baseline selected before future evaluation. The result is a repo that demonstrates not only plotting ability, but also data hygiene, quality-aware analysis, careful interpretation of observational signals, multi-resolution feature engineering, and honest time-aware modeling.
 
 ## Problem Framing
 
@@ -176,13 +176,17 @@ The important design choice is separation of concerns:
 
 Stress status values are handled explicitly. Raw `0..100` values are numeric Garmin stress readings, raw `-1` is an unmeasurable/status value, and raw `-2` is only treated as an active/large-motion proxy when the same minute also has valid heart rate.
 
-The public analytical layer now adds three Stage 4 notebooks. Notebook 07 shows what the minute-level layer contributes beyond daily aggregates: coverage diagnostics, stress-state composition, HR zones, within-day shape, and pre-sleep context. Notebook 08 checks target alignment, eligibility, split policy, and feature-set definitions. Notebook 09 runs a configurable linear-family regression pass for next-sleep average stress while keeping model selection based on repeated train/validation holdouts inside the pre-test history.
+The public analytical layer now adds three Stage 4 notebooks. Notebook 07 shows what the minute-level layer contributes beyond daily aggregates: coverage diagnostics, stress-state composition, HR zones, within-day shape, and pre-sleep context. Notebook 08 checks target alignment, eligibility, split policy, and feature-set definitions. Notebook 09 runs a configurable linear-family regression pass for next-sleep average stress with a two-stage mixed-validation protocol inside the development history.
 
-The Stage 4 linear pass uses `target_avgSleepStress_next_sleep` and the `monitoring_full_wake_pre_sleep` feature set, which has **123** candidate features. The expanded grid evaluates **70,056** linear-family configurations. The validation-selected rank-1 model is:
+The Stage 4 linear pass uses `target_avgSleepStress_next_sleep` and the `monitoring_full_wake_pre_sleep_plus_state` feature set, which has **148** candidate features. Beyond current wake and pre-sleep physiology, it adds previous-sleep context, prior-observation history, and current-day deviations from recent personal baselines.
 
-`Huber alpha=30 eps=1.15 | top_spearman_90 | clip=z=4 | cal=linear`
+A compact feature-set screen also checks aggregate-only, monitoring-core, monitoring-full, previous-sleep, history, state, and wider combined alternatives. The state-context set is retained because it improves validation behavior without requiring the widest **180-feature** state-plus-aggregate candidate pool.
 
-On the reserved future block, that model reaches future-test MAE **5.336** and R2 **0.279**. The best dummy baseline is `dummy_mean` with future-test MAE **6.198**, so the selected Huber model improves MAE by **0.863** points, or **13.9%**.
+The first stage screens **52,812** configurations on `3` random plus `3` expanding-temporal holdouts. A representative **150-candidate** shortlist is then reranked on `10` random plus `8` temporal holdouts before any finalist is evaluated on the fixed future block. The definitive validation-selected rank-1 model is:
+
+`Huber alpha=30 eps=1.05 | correlation_prune_0.9 | clip=z=4`
+
+On the fixed future block, that model reaches MAE **5.327** and R2 **0.264**. The comparison baseline is fixed as `dummy_median` before future evaluation; it reaches MAE **6.326**. The selected Huber model therefore improves MAE by **0.999** points, or **15.8%**. The absolute predictive gain over the earlier Stage 4 run is small, but the selection protocol is substantially more defensible.
 
 ![Stage 4 linear prediction diagnostics](img/stage4_linear_prediction_diagnostics.png)
 
@@ -190,7 +194,7 @@ On the reserved future block, that model reaches future-test MAE **5.336** and R
 
 ![Stage 4 linear feature importance](img/stage4_linear_feature_importance.png)
 
-*Rank-1 feature diagnostics: recent wake stress, pre-sleep stress, and heart-rate variability features carry much of the linear association, but this is plausibility evidence, not causal or clinical evidence.*
+*Rank-1 feature diagnostics: recent wake and pre-sleep stress remain important, while deviations from recent personal stress baselines add useful state context. These are associations, not causal or clinical evidence.*
 
 The result is best read as methodological progress, not as a production predictor. It shows that minute-level wearable signals can be transformed into a quality-aware modeling frame and evaluated honestly against simple baselines on a future holdout. It does not support medical decision-making, precise night-level prediction, or causal claims.
 
@@ -205,9 +209,9 @@ This repo demonstrates more than one skill category:
 - **EDA structuring**: the analysis is split into coverage, time series, distributions/segmentation, and relationships rather than dumped into one notebook
 - **Time-aware modeling**: a compact Stage 3 modeling layer evaluates predictive tasks with contiguous train/validation/test splits rather than random shuffling
 - **Leakage-aware target alignment**: Stage 4 aligns day-D monitoring windows to exact next-sleep targets and keeps sleep-phase predictors out of the default feature sets
-- **Validation-selected model tuning**: the Stage 4 linear pass chooses models by repeated holdout validation, then evaluates finalists once on a reserved future block
+- **Validation-selected model tuning**: the Stage 4 linear pass combines random and expanding-temporal holdouts, reranks a representative shortlist, freezes finalists, and only then evaluates them on a fixed future block
 - **Feature selection and honest benchmarking**: sparse models, linear-family grids, dummy baselines, nonlinear checks, and negative results are all kept in view
-- **Future-holdout evaluation**: the public modeling results separate pre-test tuning from future-test performance and call out drift when it appears
+- **Future-holdout evaluation**: the public modeling results separate development-history tuning from a fixed future readout and call out drift when it appears
 - **Interpretation discipline**: findings are framed as observational and cross-checked with artifact review
 - **Reproducible repo organization**: CLI, tests, docs, and notebooks fit together as one workflow
 

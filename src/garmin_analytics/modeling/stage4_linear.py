@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from itertools import product
 import math
@@ -49,6 +49,7 @@ STAGE4_LINEAR_FEATURE_SELECTION_MODES: tuple[str, ...] = (
     "lasso_nonzero",
 )
 STAGE4_LINEAR_DUMMY_STRATEGIES: tuple[str, ...] = ("dummy_mean", "dummy_median", "dummy_last")
+STAGE4_LINEAR_HOLDOUT_STRATEGIES: tuple[str, ...] = ("random", "mixed")
 
 
 @dataclass(frozen=True)
@@ -99,6 +100,25 @@ class Stage4LinearConfig:
     repeated_holdout_seed: int = 42
     repeated_holdout_seed_step: int = 1009
     validation_fraction_within_pretest: float | None = None
+    holdout_strategy: str = "random"
+    temporal_holdout_repeats: int = 3
+    temporal_validation_rows: int = 45
+    baseline_strategy: str = "dummy_median"
+    shortlist_count: int = 150
+    shortlist_global_top_n: int = 50
+    shortlist_temporal_mean_top_n: int = 10
+    shortlist_temporal_worst_top_n: int = 10
+    shortlist_random_stability_top_n: int = 5
+    shortlist_model_family_top_n: int = 5
+    shortlist_selector_top_n: int = 1
+    shortlist_target_transform_top_n: int = 5
+    shortlist_calibration_top_n: int = 3
+    shortlist_min_baseline_wins: int = 2
+    shortlist_temporal_worst_relative_mae_max: float = 1.25
+    combined_temporal_mean_weight: float = 0.65
+    combined_temporal_worst_weight: float = 0.20
+    combined_random_mean_weight: float = 0.10
+    combined_random_stability_weight: float = 0.05
     tuning_metric: str = "mae"
     calibration_cv_folds: int = 3
     calibration_min_rows: int = 50
@@ -165,6 +185,7 @@ class Stage4LinearRunResult:
     tuning_repeats: pd.DataFrame
     tuning_summary: pd.DataFrame
     dummy_tuning_summary: pd.DataFrame
+    shortlist_summary: pd.DataFrame
     model_selection_summary: pd.DataFrame
     final_metrics: pd.DataFrame
     dummy_metrics: pd.DataFrame
@@ -187,6 +208,7 @@ class Stage4LinearTuningResult:
     tuning_repeats: pd.DataFrame
     tuning_summary: pd.DataFrame
     dummy_tuning_summary: pd.DataFrame
+    shortlist_summary: pd.DataFrame
     validation_slices: dict[str, pd.DataFrame]
 
 
@@ -340,6 +362,7 @@ def make_repeated_pretest_holdouts(
         valid_mask[valid_positions] = True
         holdouts.append(
             {
+                "holdout_type": "random",
                 "repeat": repeat_idx,
                 "random_state": random_state,
                 "train": pretest.loc[~valid_mask].copy().reset_index(drop=True),
@@ -347,6 +370,75 @@ def make_repeated_pretest_holdouts(
             }
         )
     return holdouts
+
+
+def make_expanding_temporal_pretest_holdouts(
+    splits: Mapping[str, pd.DataFrame],
+    *,
+    repeats: int,
+    validation_rows: int,
+) -> list[dict[str, object]]:
+    """Create expanding-window temporal validation holdouts inside pre-test history."""
+    if repeats < 1:
+        raise ValueError("repeats must be at least 1")
+    if validation_rows < 1:
+        raise ValueError("validation_rows must be at least 1")
+    pretest = (
+        pd.concat([splits["train"], splits["valid"]], ignore_index=True)
+        .sort_values(["calendarDate", "analysis_window_id"])
+        .reset_index(drop=True)
+    )
+    max_validation_rows = max(1, (len(pretest) - 1) // repeats)
+    valid_n = min(int(validation_rows), max_validation_rows)
+    first_valid_start = len(pretest) - valid_n * repeats
+    if first_valid_start < 1:
+        raise ValueError(
+            "Not enough pre-test rows to create temporal holdouts with a non-empty training window"
+        )
+
+    holdouts: list[dict[str, object]] = []
+    for repeat_idx in range(repeats):
+        valid_start = first_valid_start + repeat_idx * valid_n
+        valid_end = valid_start + valid_n
+        holdouts.append(
+            {
+                "holdout_type": "temporal",
+                "repeat": repeat_idx,
+                "random_state": -1,
+                "train": pretest.iloc[:valid_start].copy().reset_index(drop=True),
+                "valid": pretest.iloc[valid_start:valid_end].copy().reset_index(drop=True),
+            }
+        )
+    return holdouts
+
+
+def make_stage4_linear_tuning_holdouts(
+    splits: Mapping[str, pd.DataFrame],
+    *,
+    config: Stage4LinearConfig | None = None,
+) -> list[dict[str, object]]:
+    """Create the configured validation holdouts inside pre-test history."""
+    config = config or Stage4LinearConfig()
+    strategy = config.holdout_strategy.lower().strip()
+    if strategy not in STAGE4_LINEAR_HOLDOUT_STRATEGIES:
+        raise ValueError(
+            f"holdout_strategy must be one of: {', '.join(STAGE4_LINEAR_HOLDOUT_STRATEGIES)}"
+        )
+    random_holdouts = make_repeated_pretest_holdouts(
+        splits,
+        repeats=config.repeated_holdout_repeats,
+        seed=config.repeated_holdout_seed,
+        seed_step=config.repeated_holdout_seed_step,
+        validation_fraction=config.validation_fraction_within_pretest,
+    )
+    if strategy == "random":
+        return random_holdouts
+    temporal_holdouts = make_expanding_temporal_pretest_holdouts(
+        splits,
+        repeats=config.temporal_holdout_repeats,
+        validation_rows=config.temporal_validation_rows,
+    )
+    return [*random_holdouts, *temporal_holdouts]
 
 
 def stage4_linear_grid_spec_from_preset(
@@ -519,21 +611,23 @@ def build_stage4_linear_experiment_plan(
         * len(model_configs)
         * len(calibrations)
     )
-    repeated_evaluations = len(grid) * config.repeated_holdout_repeats
+    temporal_repeats = config.temporal_holdout_repeats if config.holdout_strategy == "mixed" else 0
+    tuning_holdout_count = config.repeated_holdout_repeats + temporal_repeats
+    repeated_evaluations = len(grid) * tuning_holdout_count
     linear_calibration_candidates = int(grid["calibration"].eq("linear").sum())
     calibration_inner_fits = (
         linear_calibration_candidates
-        * config.repeated_holdout_repeats
+        * tuning_holdout_count
         * config.calibration_cv_folds
     )
     lasso_selector_candidates = int(grid["feature_selection_mode"].eq("lasso_nonzero").sum())
-    selector_main_fits = lasso_selector_candidates * config.repeated_holdout_repeats
+    selector_main_fits = lasso_selector_candidates * tuning_holdout_count
     selector_calibration_inner_fits = int(
         (
             grid["feature_selection_mode"].eq("lasso_nonzero")
             & grid["calibration"].eq("linear")
         ).sum()
-        * config.repeated_holdout_repeats
+        * tuning_holdout_count
         * config.calibration_cv_folds
     )
     approximate_base_fits = repeated_evaluations + calibration_inner_fits
@@ -544,7 +638,7 @@ def build_stage4_linear_experiment_plan(
     )
     resolved_n_jobs = int(effective_n_jobs(config.n_jobs))
     approximate_parallel_waves = (
-        config.repeated_holdout_repeats
+        tuning_holdout_count
         * math.ceil(len(grid) / max(1, resolved_n_jobs))
     )
     effective_finalists = min(config.finalist_count, len(grid))
@@ -566,7 +660,13 @@ def build_stage4_linear_experiment_plan(
         "grid_source": config.grid_source,
         "grid_preset": config.grid_preset if config.grid_source == "preset" else "not used",
         "tuning_metric": config.tuning_metric,
+        "holdout_strategy": config.holdout_strategy,
         "repeated_holdout_repeats": config.repeated_holdout_repeats,
+        "temporal_holdout_repeats": temporal_repeats,
+        "tuning_holdout_count": tuning_holdout_count,
+        "temporal_validation_rows": config.temporal_validation_rows,
+        "baseline_strategy": config.baseline_strategy,
+        "shortlist_count": config.shortlist_count,
         "repeated_holdout_seed": config.repeated_holdout_seed,
         "robust_clips": robust_clips,
         "target_transforms": target_transforms,
@@ -633,7 +733,12 @@ def format_stage4_linear_experiment_plan(plan: Mapping[str, object]) -> str:
             "",
             "Validation:",
             f"  metric: {plan['tuning_metric']}",
+            f"  holdout_strategy: {plan['holdout_strategy']}",
             f"  repeated_holdout_repeats: {plan['repeated_holdout_repeats']}",
+            f"  temporal_holdout_repeats: {plan['temporal_holdout_repeats']}",
+            f"  tuning_holdout_count: {plan['tuning_holdout_count']}",
+            f"  temporal_validation_rows: {plan['temporal_validation_rows']}",
+            f"  baseline_strategy: {plan['baseline_strategy']}",
             f"  repeated_holdout_seed: {plan['repeated_holdout_seed']}",
             "",
             "Enabled preprocessing:",
@@ -670,7 +775,7 @@ def format_stage4_linear_experiment_plan(plan: Mapping[str, object]) -> str:
             f"  full Cartesian grid: {plan['is_full_cartesian_grid']}",
             "",
             "Evaluation cost:",
-            f"  repeated holdout repeats: {plan['repeated_holdout_repeats']}",
+            f"  tuning holdouts: {plan['tuning_holdout_count']}",
             f"  candidate evaluation tasks: {plan['split_evaluations']}",
             f"  calibration model inner fits: {plan['calibration_inner_fits']}",
             f"  feature-selector main fits: {plan['feature_selector_main_fits']}",
@@ -685,7 +790,8 @@ def format_stage4_linear_experiment_plan(plan: Mapping[str, object]) -> str:
             f"  batch_size: {plan['parallel_batch_size']}",
             f"  approximate candidate-task waves: {plan['approximate_parallel_waves']}",
             "",
-            "Finalists:",
+            "Automatic finalist fallback:",
+            f"  shortlist_count: {plan['shortlist_count']}",
             f"  finalist_count requested: {plan['finalist_count_requested']}",
             f"  finalist_count effective: {plan['finalist_count_effective']}",
             f"  finalist base fits: {finalist_fit_text}",
@@ -757,22 +863,47 @@ def tune_stage4_linear_candidates(
     candidates: Sequence[Stage4LinearCandidate],
     *,
     config: Stage4LinearConfig | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Tune candidates using repeated train/validation holdouts inside pre-test history."""
     config = config or Stage4LinearConfig()
-    holdouts = make_repeated_pretest_holdouts(
-        splits,
-        repeats=config.repeated_holdout_repeats,
-        seed=config.repeated_holdout_seed,
-        seed_step=config.repeated_holdout_seed_step,
-        validation_fraction=config.validation_fraction_within_pretest,
-    )
+    holdouts = make_stage4_linear_tuning_holdouts(splits, config=config)
     repeat_rows: list[dict[str, object]] = []
+    total_evaluations = len(holdouts) * len(candidates)
+    completed_evaluations = 0
+    if progress_callback is not None:
+        progress_callback(completed_evaluations, total_evaluations)
     for holdout in holdouts:
         train_df = holdout["train"]
         valid_df = holdout["valid"]
         assert isinstance(train_df, pd.DataFrame)
         assert isinstance(valid_df, pd.DataFrame)
+        holdout_type = str(holdout.get("holdout_type", "random"))
+        baseline_value = dummy_baseline_value(
+            train_df,
+            config.baseline_strategy,
+            target_col=config.target_col,
+        )
+        baseline_train_pred = np.full(len(train_df), baseline_value, dtype=float)
+        baseline_valid_pred = np.full(len(valid_df), baseline_value, dtype=float)
+        baseline_metrics = {
+            "baseline_strategy": config.baseline_strategy,
+            "baseline_value": baseline_value,
+            **{
+                f"baseline_train_{key}": value
+                for key, value in regression_metrics(
+                    train_df[config.target_col],
+                    baseline_train_pred,
+                ).items()
+            },
+            **{
+                f"baseline_valid_{key}": value
+                for key, value in regression_metrics(
+                    valid_df[config.target_col],
+                    baseline_valid_pred,
+                ).items()
+            },
+        }
         task_args = [
             (
                 train_df,
@@ -780,25 +911,31 @@ def tune_stage4_linear_candidates(
                 feature_columns,
                 candidate,
                 config,
+                holdout_type,
                 int(holdout["repeat"]),
                 int(holdout["random_state"]),
+                baseline_metrics,
             )
             for candidate in candidates
         ]
+        holdout_rows: list[dict[str, object]] = []
         if config.n_jobs == 1:
-            holdout_rows = [
-                _evaluate_stage4_linear_candidate_holdout(*args)
-                for args in task_args
-            ]
+            results = (_evaluate_stage4_linear_candidate_holdout(*args) for args in task_args)
         else:
-            holdout_rows = Parallel(
+            results = Parallel(
                 n_jobs=config.n_jobs,
                 backend=config.parallel_backend,
                 batch_size=config.parallel_batch_size,
+                return_as="generator",
             )(
                 delayed(_evaluate_stage4_linear_candidate_holdout)(*args)
                 for args in task_args
             )
+        for row in results:
+            holdout_rows.append(row)
+            completed_evaluations += 1
+            if progress_callback is not None:
+                progress_callback(completed_evaluations, total_evaluations)
         repeat_rows.extend(holdout_rows)
 
     repeat_df = pd.DataFrame(repeat_rows)
@@ -812,8 +949,10 @@ def _evaluate_stage4_linear_candidate_holdout(
     feature_columns: Sequence[str],
     candidate: Stage4LinearCandidate,
     config: Stage4LinearConfig,
+    holdout_type: str,
     holdout_repeat: int,
     holdout_random_state: int,
+    baseline_metrics: Mapping[str, object],
 ) -> dict[str, object]:
     fitted = fit_stage4_linear_candidate(
         train_df,
@@ -824,10 +963,12 @@ def _evaluate_stage4_linear_candidate_holdout(
     train_pred = predict_stage4_linear(fitted, train_df)
     valid_pred = predict_stage4_linear(fitted, valid_df)
     row = {
+        "holdout_type": holdout_type,
         "holdout_repeat": holdout_repeat,
         "holdout_random_state": holdout_random_state,
         **_candidate_record(candidate),
         "selected_feature_count": len(fitted.selected_features),
+        **baseline_metrics,
     }
     row.update(
         {
@@ -847,6 +988,19 @@ def _evaluate_stage4_linear_candidate_holdout(
             ).items()
         }
     )
+    baseline_valid_mae = float(row.get("baseline_valid_mae", np.nan))
+    valid_mae = float(row.get("valid_mae", np.nan))
+    if np.isfinite(baseline_valid_mae) and baseline_valid_mae > 0 and np.isfinite(valid_mae):
+        relative_mae = valid_mae / baseline_valid_mae
+        row["valid_mae_relative_to_baseline"] = relative_mae
+        row["valid_mae_skill_vs_baseline"] = 1.0 - relative_mae
+        row["valid_mae_delta_vs_baseline"] = baseline_valid_mae - valid_mae
+        row["valid_mae_beats_baseline"] = int(valid_mae < baseline_valid_mae)
+    else:
+        row["valid_mae_relative_to_baseline"] = np.nan
+        row["valid_mae_skill_vs_baseline"] = np.nan
+        row["valid_mae_delta_vs_baseline"] = np.nan
+        row["valid_mae_beats_baseline"] = 0
     row.update(_calibration_record_for_table(fitted.calibration_record))
     return row
 
@@ -885,7 +1039,7 @@ def aggregate_tuning_repeats(
     metric_cols = [
         column
         for column in repeat_df.columns
-        if column.startswith(("train_", "valid_"))
+        if column.startswith(("train_", "valid_", "baseline_"))
         and pd.api.types.is_numeric_dtype(repeat_df[column])
     ]
     extra_numeric = [
@@ -900,18 +1054,166 @@ def aggregate_tuning_repeats(
         for column, stat in summary.columns.to_flat_index()
     ]
     summary = summary.reset_index()
-    summary["tuning_repeated_holdout_repeats"] = int(repeat_df["holdout_repeat"].nunique())
+    holdout_keys = ["holdout_repeat"]
+    if "holdout_type" in repeat_df.columns:
+        holdout_keys.insert(0, "holdout_type")
+    summary["tuning_repeated_holdout_repeats"] = int(repeat_df[holdout_keys].drop_duplicates().shape[0])
+    if "holdout_type" in repeat_df.columns:
+        holdout_counts = (
+            repeat_df[["holdout_type", "holdout_repeat"]]
+            .drop_duplicates()
+            .groupby("holdout_type")
+            .size()
+            .to_dict()
+        )
+        summary["tuning_random_holdout_repeats"] = int(holdout_counts.get("random", 0))
+        summary["tuning_temporal_holdout_repeats"] = int(holdout_counts.get("temporal", 0))
     summary["tuning_repeated_holdout_random_states"] = ",".join(
         str(value) for value in sorted(repeat_df["holdout_random_state"].unique())
     )
+    summary = _add_holdout_type_validation_summary(summary, repeat_df)
     metric_col = f"valid_{config.tuning_metric}"
     ascending = config.tuning_metric in {"mae", "rmse"}
     summary = summary.sort_values(metric_col, ascending=ascending, na_position="last").reset_index(drop=True)
     summary["selection_metric"] = config.tuning_metric
     summary["selection_metric_value"] = summary[metric_col]
     summary["selection_metric_std"] = summary.get(f"{metric_col}_std", np.nan)
+    summary = enrich_stage4_linear_validation_summary(summary)
+    summary = _add_mixed_holdout_ranking(summary, config=config)
+    if config.holdout_strategy == "mixed" and "combined_rank_score" in summary.columns:
+        summary = summary.sort_values("combined_rank_score", ascending=True, na_position="last").reset_index(drop=True)
+        summary["selection_metric"] = "combined_rank_score"
+        summary["selection_metric_value"] = summary["combined_rank_score"]
+        summary["selection_metric_std"] = summary.get("temporal_relative_mae_std", np.nan)
     summary["selection_rank"] = np.arange(1, len(summary) + 1)
-    return enrich_stage4_linear_validation_summary(summary)
+    return summary
+
+
+def _add_holdout_type_validation_summary(
+    summary: pd.DataFrame,
+    repeat_df: pd.DataFrame,
+) -> pd.DataFrame:
+    if "holdout_type" not in repeat_df.columns:
+        return summary
+    metric_cols = [
+        "train_mae",
+        "train_rmse",
+        "train_r2",
+        "valid_mae",
+        "valid_rmse",
+        "valid_r2",
+        "valid_spearman",
+        "valid_mae_relative_to_baseline",
+        "valid_mae_skill_vs_baseline",
+        "valid_mae_delta_vs_baseline",
+        "valid_mae_beats_baseline",
+    ]
+    available_metric_cols = [
+        column
+        for column in metric_cols
+        if column in repeat_df.columns and pd.api.types.is_numeric_dtype(repeat_df[column])
+    ]
+    if not available_metric_cols:
+        return summary
+
+    pieces: list[pd.DataFrame] = []
+    for holdout_type, type_df in repeat_df.groupby("holdout_type", dropna=False):
+        label = str(holdout_type)
+        grouped = type_df.groupby("candidate_id", dropna=False)
+        type_summary = grouped[available_metric_cols].agg(["mean", "std", "min", "max"])
+        type_summary.columns = [
+            f"{label}_{column}" if stat == "mean" else f"{label}_{column}_{stat}"
+            for column, stat in type_summary.columns.to_flat_index()
+        ]
+        type_summary = type_summary.reset_index()
+        count_col = f"{label}_holdout_count"
+        type_summary[count_col] = grouped.size().to_numpy(dtype=int)
+        if "valid_mae_beats_baseline" in type_df.columns:
+            wins = grouped["valid_mae_beats_baseline"].sum().rename(f"{label}_baseline_wins").reset_index()
+            type_summary = type_summary.merge(wins, on="candidate_id", how="left")
+        pieces.append(type_summary)
+
+    out = summary.copy()
+    for piece in pieces:
+        out = out.merge(piece, on="candidate_id", how="left")
+
+    for label in ("random", "temporal"):
+        rename = {
+            f"{label}_train_mae": f"{label}_mean_train_mae",
+            f"{label}_train_mae_std": f"{label}_std_train_mae",
+            f"{label}_train_rmse": f"{label}_mean_train_rmse",
+            f"{label}_train_r2": f"{label}_mean_train_r2",
+            f"{label}_valid_mae": f"{label}_mean_valid_mae",
+            f"{label}_valid_mae_std": f"{label}_std_valid_mae",
+            f"{label}_valid_rmse": f"{label}_mean_valid_rmse",
+            f"{label}_valid_r2": f"{label}_mean_valid_r2",
+            f"{label}_valid_mae_relative_to_baseline": f"{label}_mean_relative_mae",
+            f"{label}_valid_mae_relative_to_baseline_std": f"{label}_relative_mae_std",
+            f"{label}_valid_mae_relative_to_baseline_max": f"{label}_worst_relative_mae",
+            f"{label}_valid_mae_skill_vs_baseline": f"{label}_mean_skill_vs_baseline",
+            f"{label}_valid_mae_delta_vs_baseline": f"{label}_mean_delta_mae_vs_baseline",
+        }
+        out = out.rename(columns={source: target for source, target in rename.items() if source in out.columns})
+    return out
+
+
+def _percentile_rank(series: pd.Series) -> pd.Series:
+    numeric = pd.to_numeric(series, errors="coerce")
+    valid = numeric.notna()
+    ranks = pd.Series(np.nan, index=series.index, dtype="float64")
+    if not bool(valid.any()):
+        return ranks
+    ranks.loc[valid] = numeric.loc[valid].rank(method="average", ascending=True, pct=True)
+    return ranks
+
+
+def _add_mixed_holdout_ranking(
+    summary: pd.DataFrame,
+    *,
+    config: Stage4LinearConfig,
+) -> pd.DataFrame:
+    out = summary.copy()
+    if config.holdout_strategy != "mixed":
+        return out
+
+    required = {
+        "temporal_mean_relative_mae",
+        "temporal_worst_relative_mae",
+        "random_mean_relative_mae",
+        "random_relative_mae_std",
+    }
+    for column in required:
+        if column not in out.columns:
+            out[column] = np.nan
+
+    out["temporal_mean_relative_mae_percentile"] = _percentile_rank(out["temporal_mean_relative_mae"])
+    out["temporal_worst_relative_mae_percentile"] = _percentile_rank(out["temporal_worst_relative_mae"])
+    out["random_mean_relative_mae_percentile"] = _percentile_rank(out["random_mean_relative_mae"])
+    out["random_relative_mae_std_percentile"] = _percentile_rank(out["random_relative_mae_std"])
+
+    out["combined_rank_score"] = (
+        config.combined_temporal_mean_weight * out["temporal_mean_relative_mae_percentile"]
+        + config.combined_temporal_worst_weight * out["temporal_worst_relative_mae_percentile"]
+        + config.combined_random_mean_weight * out["random_mean_relative_mae_percentile"]
+        + config.combined_random_stability_weight * out["random_relative_mae_std_percentile"]
+    )
+    temporal_min_wins = min(config.shortlist_min_baseline_wins, max(1, config.temporal_holdout_repeats))
+    random_min_wins = min(config.shortlist_min_baseline_wins, max(1, config.repeated_holdout_repeats))
+    temporal_wins = pd.to_numeric(
+        out.get("temporal_baseline_wins", pd.Series(0, index=out.index)),
+        errors="coerce",
+    ).fillna(0)
+    random_wins = pd.to_numeric(
+        out.get("random_baseline_wins", pd.Series(0, index=out.index)),
+        errors="coerce",
+    ).fillna(0)
+    worst_temporal = pd.to_numeric(out["temporal_worst_relative_mae"], errors="coerce")
+    out["baseline_gate_pass"] = (
+        temporal_wins.ge(temporal_min_wins)
+        & random_wins.ge(random_min_wins)
+        & worst_temporal.le(config.shortlist_temporal_worst_relative_mae_max)
+    )
+    return out
 
 
 def enrich_stage4_linear_validation_summary(summary: pd.DataFrame) -> pd.DataFrame:
@@ -991,6 +1293,74 @@ def predict_stage4_linear(fitted: FittedStage4LinearModel, frame: pd.DataFrame) 
     return apply_prediction_clip(pred, fitted.candidate.prediction_clip)
 
 
+def evaluate_stage4_linear_contiguous_dev_diagnostic(
+    splits: Mapping[str, pd.DataFrame],
+    feature_columns: Sequence[str],
+    candidate: Stage4LinearCandidate,
+    *,
+    config: Stage4LinearConfig | None = None,
+    train_fraction: float = 0.70,
+    valid_fraction: float = 0.15,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Fit one candidate on early dev history and evaluate three contiguous dev segments."""
+    config = config or Stage4LinearConfig()
+    if not 0.0 < train_fraction < 1.0:
+        raise ValueError("train_fraction must be between 0 and 1")
+    if not 0.0 < valid_fraction < 1.0:
+        raise ValueError("valid_fraction must be between 0 and 1")
+    if train_fraction + valid_fraction >= 1.0:
+        raise ValueError("train_fraction + valid_fraction must be less than 1")
+    dev = (
+        pd.concat([splits["train"], splits["valid"]], ignore_index=True)
+        .sort_values(["calendarDate", "analysis_window_id"])
+        .reset_index(drop=True)
+    )
+    train_end = max(1, int(math.floor(len(dev) * train_fraction)))
+    valid_end = max(train_end + 1, int(math.floor(len(dev) * (train_fraction + valid_fraction))))
+    valid_end = min(valid_end, len(dev) - 1)
+    diagnostic_splits = {
+        "dev_train": dev.iloc[:train_end].copy().reset_index(drop=True),
+        "dev_valid": dev.iloc[train_end:valid_end].copy().reset_index(drop=True),
+        "dev_test": dev.iloc[valid_end:].copy().reset_index(drop=True),
+    }
+    if any(split.empty for split in diagnostic_splits.values()):
+        raise ValueError("Not enough dev rows for the requested contiguous diagnostic split")
+
+    fitted = fit_stage4_linear_candidate(
+        diagnostic_splits["dev_train"],
+        feature_columns,
+        candidate,
+        config=config,
+    )
+    metric_rows: list[dict[str, object]] = []
+    prediction_frames: list[pd.DataFrame] = []
+    for split_name, split_df in diagnostic_splits.items():
+        pred = predict_stage4_linear(fitted, split_df)
+        metric_rows.append(
+            {
+                **_candidate_record(candidate),
+                "split": split_name,
+                "diagnostic_fit_rows": len(diagnostic_splits["dev_train"]),
+                "diagnostic_dev_rows": len(dev),
+                **regression_metrics(split_df[config.target_col], pred),
+            }
+        )
+        prediction_frames.append(
+            _prediction_frame(
+                split_df,
+                config.target_col,
+                pred,
+                model_name=f"candidate_{candidate.candidate_id}",
+                model_kind=candidate.model_kind,
+                split_name=split_name,
+                candidate=candidate,
+                validation_selection_rank=1,
+                prediction_provenance="contiguous_dev_diagnostic",
+            )
+        )
+    return pd.DataFrame(metric_rows), pd.concat(prediction_frames, ignore_index=True)
+
+
 def evaluate_stage4_linear_finalists(
     splits: Mapping[str, pd.DataFrame],
     feature_columns: Sequence[str],
@@ -998,20 +1368,30 @@ def evaluate_stage4_linear_finalists(
     candidates: Sequence[Stage4LinearCandidate],
     *,
     config: Stage4LinearConfig | None = None,
+    finalist_candidate_ids: Sequence[int] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Refit validation-selected finalists on all pre-test rows and evaluate the future test."""
     config = config or Stage4LinearConfig()
     candidate_by_id = {candidate.candidate_id: candidate for candidate in candidates}
-    finalist_ids = tuning_summary.head(config.finalist_count)["candidate_id"].astype(int).tolist()
+    if finalist_candidate_ids is None:
+        finalist_ids = tuning_summary.head(config.finalist_count)["candidate_id"].astype(int).tolist()
+    else:
+        requested_ids = list(dict.fromkeys(int(candidate_id) for candidate_id in finalist_candidate_ids))
+        missing_ids = sorted(set(requested_ids) - set(candidate_by_id))
+        if missing_ids:
+            raise KeyError(f"Unknown finalist candidate ids: {missing_ids}")
+        tuning_ids = set(tuning_summary["candidate_id"].astype(int))
+        missing_summary_ids = sorted(set(requested_ids) - tuning_ids)
+        if missing_summary_ids:
+            raise KeyError(f"Finalist candidate ids missing from tuning summary: {missing_summary_ids}")
+        finalist_ids = requested_ids
     pretest = (
         pd.concat([splits["train"], splits["valid"]], ignore_index=True)
         .sort_values(["calendarDate", "analysis_window_id"])
         .reset_index(drop=True)
     )
     eval_splits = {
-        "train": splits["train"],
-        "valid": splits["valid"],
-        "pre_test": pretest,
+        "dev": pretest,
         "test": splits["test"],
     }
     metric_rows: list[dict[str, object]] = []
@@ -1109,7 +1489,7 @@ def _evaluate_stage4_linear_finalist(
                 prediction_provenance=(
                     "final_refit_future_test"
                     if split_name == "test"
-                    else "final_refit_in_sample_pretest"
+                    else "final_refit_in_sample_dev"
                 ),
             )
         )
@@ -1123,13 +1503,7 @@ def tune_dummy_baselines(
 ) -> pd.DataFrame:
     """Aggregate dummy-baseline validation metrics over the repeated pre-test holdouts."""
     config = config or Stage4LinearConfig()
-    holdouts = make_repeated_pretest_holdouts(
-        splits,
-        repeats=config.repeated_holdout_repeats,
-        seed=config.repeated_holdout_seed,
-        seed_step=config.repeated_holdout_seed_step,
-        validation_fraction=config.validation_fraction_within_pretest,
-    )
+    holdouts = make_stage4_linear_tuning_holdouts(splits, config=config)
     rows: list[dict[str, object]] = []
     for holdout in holdouts:
         train_df = holdout["train"]
@@ -1142,6 +1516,7 @@ def tune_dummy_baselines(
             row = {
                 "candidate_type": "dummy",
                 "model_kind": strategy,
+                "holdout_type": str(holdout.get("holdout_type", "random")),
                 "holdout_repeat": int(holdout["repeat"]),
                 "holdout_random_state": int(holdout["random_state"]),
             }
@@ -1166,6 +1541,26 @@ def tune_dummy_baselines(
     summary = repeat_df.groupby(["candidate_type", "model_kind"], dropna=False)[metric_cols].agg(["mean", "std"])
     summary.columns = [column if stat == "mean" else f"{column}_{stat}" for column, stat in summary.columns.to_flat_index()]
     summary = summary.reset_index()
+    if "holdout_type" in repeat_df.columns:
+        for holdout_type, type_df in repeat_df.groupby("holdout_type", dropna=False):
+            label = str(holdout_type)
+            type_metrics = type_df.groupby("model_kind", dropna=False)[
+                ["train_mae", "valid_mae"]
+            ].agg(["mean", "std", "max"])
+            type_metrics.columns = [
+                f"{label}_{metric}_{stat}"
+                for metric, stat in type_metrics.columns.to_flat_index()
+            ]
+            type_metrics = type_metrics.rename(
+                columns={
+                    f"{label}_train_mae_mean": f"{label}_mean_train_mae",
+                    f"{label}_train_mae_std": f"{label}_std_train_mae",
+                    f"{label}_valid_mae_mean": f"{label}_mean_valid_mae",
+                    f"{label}_valid_mae_std": f"{label}_std_valid_mae",
+                    f"{label}_valid_mae_max": f"{label}_worst_valid_mae",
+                }
+            ).reset_index()
+            summary = summary.merge(type_metrics, on="model_kind", how="left")
     metric_col = f"valid_{config.tuning_metric}"
     ascending = config.tuning_metric in {"mae", "rmse"}
     summary = summary.sort_values(metric_col, ascending=ascending, na_position="last").reset_index(drop=True)
@@ -1196,7 +1591,7 @@ def evaluate_dummy_baselines(
     *,
     config: Stage4LinearConfig | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Fit dummy baselines on all pre-test rows and evaluate train/valid/pre-test/test."""
+    """Fit dummy baselines on all pre-test rows and evaluate dev/test."""
     config = config or Stage4LinearConfig()
     pretest = (
         pd.concat([splits["train"], splits["valid"]], ignore_index=True)
@@ -1204,9 +1599,7 @@ def evaluate_dummy_baselines(
         .reset_index(drop=True)
     )
     eval_splits = {
-        "train": splits["train"],
-        "valid": splits["valid"],
-        "pre_test": pretest,
+        "dev": pretest,
         "test": splits["test"],
     }
     metric_rows: list[dict[str, object]] = []
@@ -1350,7 +1743,6 @@ def build_stage4_linear_leaderboard_slices(
     )
     dummy_future = (
         dummy_metrics.loc[dummy_metrics["split"].eq("test")]
-        .sort_values("mae")
         .reset_index(drop=True)
     )
     dummy_cols = [
@@ -1373,6 +1765,12 @@ def build_stage4_linear_leaderboard_slices(
         on="model_kind",
         how="left",
     )
+    dummy_sort_col = (
+        "selection_metric_value"
+        if "selection_metric_value" in dummy_baselines.columns
+        else "mean_valid_mae"
+    )
+    dummy_baselines = dummy_baselines.sort_values(dummy_sort_col).reset_index(drop=True)
     return {
         "overall_validation": overall,
         "best_by_model_kind": best_by_model,
@@ -1402,14 +1800,140 @@ def build_stage4_linear_validation_slices(
     }
 
 
+def select_stage4_linear_future_test_candidates(
+    tuning_summary: pd.DataFrame,
+    *,
+    global_top_n: int = 1,
+    model_family_top_n: int = 1,
+) -> pd.DataFrame:
+    """Select future-test candidates by validation rank before opening the future test."""
+    if global_top_n < 0 or model_family_top_n < 0:
+        raise ValueError("future-test selection counts must be non-negative")
+    if tuning_summary.empty:
+        return tuning_summary.copy()
+
+    data = tuning_summary.sort_values(["selection_rank", "candidate_id"]).reset_index(drop=True)
+    roles: dict[int, set[str]] = {}
+
+    def add_rows(rows: pd.DataFrame, role: str) -> None:
+        for candidate_id in rows["candidate_id"].astype(int).tolist():
+            roles.setdefault(candidate_id, set()).add(role)
+
+    add_rows(data.head(global_top_n), "global_validation_leader")
+    for _, group in data.groupby("model_kind", dropna=False, sort=False):
+        add_rows(group.head(model_family_top_n), "model_family_validation_leader")
+
+    selected = data.loc[data["candidate_id"].astype(int).isin(roles)].copy()
+    selected["future_test_selection_roles"] = selected["candidate_id"].astype(int).map(
+        lambda candidate_id: "|".join(sorted(roles[candidate_id]))
+    )
+    selected.insert(0, "future_test_selection_order", np.arange(1, len(selected) + 1))
+    return selected.reset_index(drop=True)
+
+
+def build_stage4_linear_shortlist(
+    tuning_summary: pd.DataFrame,
+    *,
+    config: Stage4LinearConfig | None = None,
+) -> pd.DataFrame:
+    """Build a bounded, model-family-representative shortlist from mixed validation."""
+    config = config or Stage4LinearConfig()
+    if tuning_summary.empty:
+        return tuning_summary.copy()
+    if config.shortlist_count < 1:
+        raise ValueError("shortlist_count must be at least 1")
+
+    data = tuning_summary.copy()
+    score_col = "combined_rank_score" if "combined_rank_score" in data.columns else "selection_metric_value"
+    data = data.sort_values([score_col, "candidate_id"], ascending=[True, True], na_position="last").reset_index(drop=True)
+    eligible = (
+        data.loc[data["baseline_gate_pass"].fillna(False)].copy()
+        if "baseline_gate_pass" in data.columns
+        else data.copy()
+    )
+    if eligible.empty:
+        eligible = data.copy()
+
+    roles: dict[int, set[str]] = {}
+
+    def add_rows(rows: pd.DataFrame, role: str) -> None:
+        for candidate_id in rows["candidate_id"].astype(int).tolist():
+            roles.setdefault(candidate_id, set()).add(role)
+
+    add_rows(data.head(config.shortlist_global_top_n), "global_top")
+    if "temporal_mean_relative_mae" in data.columns:
+        add_rows(
+            data.nsmallest(config.shortlist_temporal_mean_top_n, "temporal_mean_relative_mae"),
+            "temporal_mean_leader",
+        )
+    if "temporal_worst_relative_mae" in data.columns:
+        add_rows(
+            data.nsmallest(config.shortlist_temporal_worst_top_n, "temporal_worst_relative_mae"),
+            "temporal_worst_leader",
+        )
+    if "random_relative_mae_std" in data.columns:
+        add_rows(
+            data.nsmallest(config.shortlist_random_stability_top_n, "random_relative_mae_std"),
+            "random_stability_leader",
+        )
+
+    for _, group in data.groupby("model_kind", dropna=False, sort=False):
+        add_rows(group.head(config.shortlist_model_family_top_n), "model_family_representative")
+    for _, group in data.groupby("feature_selection_mode", dropna=False, sort=False):
+        add_rows(group.head(config.shortlist_selector_top_n), "selector_representative")
+    for _, group in data.groupby("target_transform", dropna=False, sort=False):
+        add_rows(group.head(config.shortlist_target_transform_top_n), "target_transform_representative")
+    for _, group in data.groupby("calibration", dropna=False, sort=False):
+        add_rows(group.head(config.shortlist_calibration_top_n), "calibration_representative")
+
+    protected_roles = {
+        "global_top",
+        "model_family_representative",
+        "selector_representative",
+    }
+    protected_ids = {
+        candidate_id
+        for candidate_id, candidate_roles in roles.items()
+        if candidate_roles & protected_roles
+    }
+    selected_ids = set(roles)
+    if len(selected_ids) > config.shortlist_count:
+        optional = data.loc[
+            data["candidate_id"].astype(int).isin(selected_ids - protected_ids)
+        ]["candidate_id"].astype(int).tolist()
+        room = max(0, config.shortlist_count - len(protected_ids))
+        selected_ids = {*protected_ids, *optional[:room]}
+    elif len(selected_ids) < config.shortlist_count:
+        ordered_fill = pd.concat([eligible, data], ignore_index=True).drop_duplicates("candidate_id")
+        for candidate_id in ordered_fill["candidate_id"].astype(int):
+            if len(selected_ids) >= config.shortlist_count:
+                break
+            if candidate_id in selected_ids:
+                continue
+            selected_ids.add(candidate_id)
+            roles.setdefault(candidate_id, set()).add("combined_rank_fill")
+
+    shortlist = data.loc[data["candidate_id"].astype(int).isin(selected_ids)].copy()
+    shortlist["shortlist_roles"] = shortlist["candidate_id"].astype(int).map(
+        lambda candidate_id: ",".join(sorted(roles.get(candidate_id, {"combined_rank_fill"})))
+    )
+    shortlist["shortlist_protected"] = shortlist["candidate_id"].astype(int).isin(protected_ids)
+    shortlist = shortlist.sort_values([score_col, "candidate_id"], ascending=[True, True], na_position="last").reset_index(drop=True)
+    shortlist.insert(0, "shortlist_rank", np.arange(1, len(shortlist) + 1))
+    return shortlist
+
+
 def build_stage4_linear_paired_deltas(
     tuning_summary: pd.DataFrame,
     *,
     factor: str,
     reference: str,
+    metric_col: str = "mean_valid_mae",
 ) -> pd.DataFrame:
     """Pair otherwise-identical candidates and compute validation-MAE deltas."""
     data = enrich_stage4_linear_validation_summary(tuning_summary)
+    if metric_col not in data.columns:
+        raise KeyError(f"tuning_summary missing paired-delta metric: {metric_col}")
     factor_columns = {
         "calibration": ["calibration"],
         "robust_clip": ["robust_clip"],
@@ -1462,10 +1986,10 @@ def build_stage4_linear_paired_deltas(
     if reference_rows.empty or variants.empty:
         return pd.DataFrame()
     reference_rows = reference_rows[
-        [*pair_columns, "mean_valid_mae", "candidate_id"]
+        [*pair_columns, metric_col, "candidate_id"]
     ].rename(
         columns={
-            "mean_valid_mae": "reference_mean_valid_mae",
+            metric_col: "reference_mean_valid_mae",
             "candidate_id": "reference_candidate_id",
         }
     )
@@ -1474,8 +1998,9 @@ def build_stage4_linear_paired_deltas(
         return paired
     paired["reference_value"] = reference_value
     paired["delta_mean_valid_mae"] = (
-        paired["mean_valid_mae"] - paired["reference_mean_valid_mae"]
+        paired[metric_col] - paired["reference_mean_valid_mae"]
     )
+    paired["paired_metric"] = metric_col
     paired["delta_direction"] = np.where(
         paired["delta_mean_valid_mae"].lt(0),
         "improved",
@@ -1729,7 +2254,7 @@ def plot_stage4_linear_rank1_feature_importance(
     top_n: int = 20,
     save_path: str | Path | None = None,
 ) -> Any:
-    """Plot final-refit coefficients beside validation permutation importance."""
+    """Plot independently ranked dev-refit coefficients and validation permutation importance."""
     import matplotlib.pyplot as plt
 
     required = {
@@ -1743,29 +2268,44 @@ def plot_stage4_linear_rank1_feature_importance(
     missing = sorted(required - set(importance.columns))
     if missing:
         raise KeyError(f"importance missing required columns: {missing}")
-    data = importance.sort_values("rank").head(max(1, int(top_n))).copy()
-    data = data.iloc[::-1]
-    fig_height = max(5.8, 0.34 * len(data) + 1.8)
+    top_n = max(1, int(top_n))
+    coefficient_available = (
+        importance["coefficient_available"].fillna(False)
+        if "coefficient_available" in importance.columns
+        else importance["standardized_coefficient"].notna()
+    )
+    coefficient_data = (
+        importance.loc[coefficient_available]
+        .dropna(subset=["abs_standardized_coefficient"])
+        .nlargest(top_n, "abs_standardized_coefficient")
+        .sort_values("abs_standardized_coefficient")
+    )
+    permutation_data = (
+        importance.dropna(subset=["permutation_mae_increase_mean"])
+        .nlargest(top_n, "permutation_mae_increase_mean")
+        .sort_values("permutation_mae_increase_mean")
+    )
+    fig_height = max(5.8, 0.34 * max(len(coefficient_data), len(permutation_data)) + 1.8)
     fig, axes = plt.subplots(1, 2, figsize=(14, fig_height), constrained_layout=True)
-    coef_values = pd.to_numeric(data["standardized_coefficient"], errors="coerce").to_numpy(dtype=float)
+    coef_values = pd.to_numeric(coefficient_data["standardized_coefficient"], errors="coerce").to_numpy(dtype=float)
     coef_colors = np.where(coef_values >= 0, "#4C78A8", "#F58518")
-    axes[0].barh(data["feature"], coef_values, color=coef_colors, alpha=0.88)
+    axes[0].barh(coefficient_data["feature"], coef_values, color=coef_colors, alpha=0.88)
     axes[0].axvline(0.0, color="#333333", linewidth=1.0)
-    axes[0].set_title("Final-Refit Standardized Coefficients")
-    axes[0].set_xlabel("Coefficient on preprocessed scale")
+    axes[0].set_title("Dev-Refit Coefficients: Top Absolute Effects")
+    axes[0].set_xlabel("Signed coefficient on standardized/preprocessed scale")
     axes[0].set_ylabel("")
     axes[0].grid(True, axis="x", color="#E6E6E6")
 
     permutation_values = pd.to_numeric(
-        data["permutation_mae_increase_mean"],
+        permutation_data["permutation_mae_increase_mean"],
         errors="coerce",
     ).to_numpy(dtype=float)
     permutation_error = pd.to_numeric(
-        data["permutation_mae_increase_std"],
+        permutation_data["permutation_mae_increase_std"],
         errors="coerce",
     ).fillna(0.0).to_numpy(dtype=float)
     axes[1].barh(
-        data["feature"],
+        permutation_data["feature"],
         permutation_values,
         xerr=permutation_error,
         color="#C89B4B",
@@ -1773,11 +2313,11 @@ def plot_stage4_linear_rank1_feature_importance(
         error_kw={"ecolor": "#333333", "elinewidth": 1.0, "capsize": 2},
     )
     axes[1].axvline(0.0, color="#333333", linewidth=1.0)
-    axes[1].set_title("Validation Permutation Importance")
-    axes[1].set_xlabel("MAE increase when permuted")
+    axes[1].set_title("Contiguous Validation Permutation Importance")
+    axes[1].set_xlabel("Validation MAE increase when permuted")
     axes[1].set_ylabel("")
     axes[1].grid(True, axis="x", color="#E6E6E6")
-    fig.suptitle("Rank-1 Linear Model Feature Diagnostics")
+    fig.suptitle("Rank-1 Feature Diagnostics: Independent Top-N Lists And Scales")
     if save_path is not None:
         path = Path(save_path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1792,6 +2332,7 @@ def tune_stage4_linear_modeling(
     config: Stage4LinearConfig | None = None,
     candidates: Sequence[Stage4LinearCandidate] | None = None,
     grid_spec: Stage4LinearGridSpec | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> Stage4LinearTuningResult:
     """Run candidate tuning and validation diagnostics without evaluating future test."""
     config = config or Stage4LinearConfig()
@@ -1827,12 +2368,20 @@ def tune_stage4_linear_modeling(
         feature_columns,
         candidate_list,
         config=config,
+        progress_callback=progress_callback,
     )
     dummy_tuning_summary = tune_dummy_baselines(splits, config=config)
+    shortlist_summary = (
+        build_stage4_linear_shortlist(tuning_summary, config=config)
+        if config.holdout_strategy == "mixed"
+        else pd.DataFrame()
+    )
     validation_slices = build_stage4_linear_validation_slices(
         tuning_summary,
         dummy_tuning_summary,
     )
+    if not shortlist_summary.empty:
+        validation_slices["shortlist"] = shortlist_summary
     return Stage4LinearTuningResult(
         config=config,
         feature_columns=feature_columns,
@@ -1843,12 +2392,48 @@ def tune_stage4_linear_modeling(
         tuning_repeats=tuning_repeats,
         tuning_summary=tuning_summary,
         dummy_tuning_summary=dummy_tuning_summary,
+        shortlist_summary=shortlist_summary,
+        validation_slices=validation_slices,
+    )
+
+
+def refresh_stage4_linear_tuning_result_summaries(
+    tuning_result: Stage4LinearTuningResult,
+) -> Stage4LinearTuningResult:
+    """Reaggregate stored holdout evaluations without refitting candidate models."""
+    config = tuning_result.config
+    tuning_summary = aggregate_tuning_repeats(tuning_result.tuning_repeats, config=config)
+    dummy_tuning_summary = tune_dummy_baselines(tuning_result.splits, config=config)
+    shortlist_summary = (
+        build_stage4_linear_shortlist(tuning_summary, config=config)
+        if config.holdout_strategy == "mixed"
+        else pd.DataFrame()
+    )
+    validation_slices = build_stage4_linear_validation_slices(
+        tuning_summary,
+        dummy_tuning_summary,
+    )
+    if not shortlist_summary.empty:
+        validation_slices["shortlist"] = shortlist_summary
+    return Stage4LinearTuningResult(
+        config=config,
+        feature_columns=tuning_result.feature_columns,
+        candidates=tuning_result.candidates,
+        splits=tuning_result.splits,
+        candidate_grid=tuning_result.candidate_grid,
+        experiment_plan=tuning_result.experiment_plan,
+        tuning_repeats=tuning_result.tuning_repeats,
+        tuning_summary=tuning_summary,
+        dummy_tuning_summary=dummy_tuning_summary,
+        shortlist_summary=shortlist_summary,
         validation_slices=validation_slices,
     )
 
 
 def finalize_stage4_linear_modeling(
     tuning_result: Stage4LinearTuningResult,
+    *,
+    finalist_candidate_ids: Sequence[int] | None = None,
 ) -> Stage4LinearRunResult:
     """Refit validation-selected finalists and evaluate the reserved future test."""
     config = tuning_result.config
@@ -1858,6 +2443,7 @@ def finalize_stage4_linear_modeling(
         tuning_result.tuning_summary,
         tuning_result.candidates,
         config=config,
+        finalist_candidate_ids=finalist_candidate_ids,
     )
     dummy_metrics, dummy_predictions = evaluate_dummy_baselines(tuning_result.splits, config=config)
     leaderboard = build_stage4_linear_leaderboard(
@@ -1880,6 +2466,7 @@ def finalize_stage4_linear_modeling(
         tuning_repeats=tuning_result.tuning_repeats,
         tuning_summary=tuning_result.tuning_summary,
         dummy_tuning_summary=tuning_result.dummy_tuning_summary,
+        shortlist_summary=tuning_result.shortlist_summary,
         model_selection_summary=model_selection_summary,
         final_metrics=final_metrics,
         dummy_metrics=dummy_metrics,
@@ -1897,6 +2484,7 @@ def run_stage4_linear_modeling(
     config: Stage4LinearConfig | None = None,
     candidates: Sequence[Stage4LinearCandidate] | None = None,
     grid_spec: Stage4LinearGridSpec | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> Stage4LinearRunResult:
     """Run the Stage 4 linear-family modeling pass from frame to leaderboard."""
     tuning_result = tune_stage4_linear_modeling(
@@ -1905,6 +2493,7 @@ def run_stage4_linear_modeling(
         config=config,
         candidates=candidates,
         grid_spec=grid_spec,
+        progress_callback=progress_callback,
     )
     return finalize_stage4_linear_modeling(tuning_result)
 
@@ -1924,11 +2513,16 @@ def build_stage4_linear_summary_markdown(result: Stage4LinearRunResult) -> str:
     finalist_test = slices["final_future_test"].copy()
     dummy_test = result.dummy_metrics.loc[result.dummy_metrics["split"].eq("test")].copy()
     dummy_baselines = slices["dummy_baselines"].copy()
-    best_dummy_test_mae = float(dummy_test["mae"].min()) if not dummy_test.empty else np.nan
+    selected_dummy_test = dummy_test.loc[dummy_test["model_kind"].eq(cfg.baseline_strategy)].copy()
+    selected_dummy_test_mae = (
+        float(selected_dummy_test.iloc[0]["mae"])
+        if not selected_dummy_test.empty
+        else np.nan
+    )
     best_model_test_mae = float(finalist_test.sort_values("validation_selection_rank").iloc[0]["mae"]) if not finalist_test.empty else np.nan
     best_model_validation_rank = int(finalist_test.sort_values("validation_selection_rank").iloc[0]["validation_selection_rank"]) if not finalist_test.empty else 0
-    improvement = best_dummy_test_mae - best_model_test_mae
-    improvement_pct = 100.0 * improvement / best_dummy_test_mae if np.isfinite(best_dummy_test_mae) and best_dummy_test_mae else np.nan
+    improvement = selected_dummy_test_mae - best_model_test_mae
+    improvement_pct = 100.0 * improvement / selected_dummy_test_mae if np.isfinite(selected_dummy_test_mae) and selected_dummy_test_mae else np.nan
 
     validation_cols = [
         "selection_rank",
@@ -1977,12 +2571,34 @@ def build_stage4_linear_summary_markdown(result: Stage4LinearRunResult) -> str:
     ]
     dummy_test_cols = [
         "model_kind",
+        "preselected_for_comparison",
         "baseline_value",
         "mae",
         "rmse",
         "r2",
         "bias_pred_minus_target",
     ]
+
+    if cfg.holdout_strategy == "mixed":
+        tuning_description = (
+            f"`{cfg.repeated_holdout_repeats}` random holdouts plus "
+            f"`{cfg.temporal_holdout_repeats}` expanding temporal holdouts inside the pre-test history"
+        )
+        selection_description = (
+            "Model selection uses a combined rank led by temporal mean relative MAE, with temporal worst-fold "
+            "performance and random-holdout performance/stability as secondary criteria. Relative MAE is measured "
+            f"against `{cfg.baseline_strategy}` fit on each holdout's training rows."
+        )
+    else:
+        tuning_description = (
+            f"`{cfg.repeated_holdout_repeats}` repeated train/validation holdouts inside the pre-test history"
+        )
+        selection_description = "Model selection is based on repeated-holdout validation only."
+    dummy_test["preselected_for_comparison"] = dummy_test["model_kind"].eq(cfg.baseline_strategy)
+    dummy_test = dummy_test.sort_values(
+        ["preselected_for_comparison", "model_kind"],
+        ascending=[False, True],
+    )
 
     lines = [
         "# Stage 4 Sleep Stress Linear Models",
@@ -1996,17 +2612,19 @@ def build_stage4_linear_summary_markdown(result: Stage4LinearRunResult) -> str:
         f"- Candidate features: `{len(result.feature_columns)}`",
         f"- Grid source: `{cfg.grid_source}`",
         f"- Grid preset: `{cfg.grid_preset}`" if cfg.grid_source == "preset" else "- Grid preset: not used",
-        f"- Split strategy: `{cfg.split_col}` with the final future test block held out until finalist evaluation",
-        f"- Tuning: `{cfg.repeated_holdout_repeats}` repeated train/validation holdouts inside the pre-test history",
+        f"- Split strategy: `{cfg.split_col}` with a fixed future holdout excluded from model selection",
+        f"- Tuning: {tuning_description}",
         f"- Tuning metric: `{cfg.tuning_metric}`",
         f"- Parallel candidate jobs: `{cfg.n_jobs}` with `{cfg.parallel_backend}` backend",
-        f"- Candidate grid: `{len(result.candidate_grid)}` linear-family configurations",
-        f"- Finalists refit on all pre-test rows before future-test evaluation: `{cfg.finalist_count}`",
+        f"- Definitive rerank candidates: `{len(result.candidate_grid)}` linear-family configurations",
+        f"- Representative validation shortlist: `{len(result.shortlist_summary)}` candidates",
+        f"- Validation-selected finalists refit on all dev rows before fixed-future-holdout evaluation: `{len(result.model_selection_summary)}`",
         f"- Dummy baselines: `{', '.join(STAGE4_LINEAR_DUMMY_STRATEGIES)}`",
+        f"- Comparison baseline selected before fixed-future-holdout evaluation: `{cfg.baseline_strategy}`",
         "",
         "Preprocessing is fit inside each training split: numeric median imputation, optional train-fitted z clipping, standardization, and categorical one-hot encoding when categorical predictors are present. Feature selection and optional linear calibration are also fit without using validation or test target values; calibration uses out-of-fold pre-test predictions.",
         "",
-        "Model selection is based on repeated-holdout validation only. The future test block is used once for evaluation of validation-selected finalists after refitting on all pre-test rows. Any future-test ordering among finalists is diagnostic only, not a tuning rule.",
+        f"{selection_description} The fixed future holdout is evaluated only after validation-selected finalists are frozen and refit on all development rows. Any future-holdout ordering among finalists is diagnostic only, not a tuning rule.",
         "",
         "## Validation Leaders",
         "",
@@ -2020,7 +2638,7 @@ def build_stage4_linear_summary_markdown(result: Stage4LinearRunResult) -> str:
         "",
         _markdown_table(best_by_model_feature_selection, validation_cols),
         "",
-        "## Final Future Test For Validation-Selected Finalists",
+        "## Fixed Future Holdout For Validation-Selected Finalists",
         "",
         _markdown_table(finalist_test.sort_values("validation_selection_rank"), test_cols),
         "",
@@ -2028,20 +2646,20 @@ def build_stage4_linear_summary_markdown(result: Stage4LinearRunResult) -> str:
         "",
         _markdown_table(dummy_baselines, dummy_cols),
         "",
-        "## Dummy Baselines On Future Test",
+        "## Dummy Baselines On Fixed Future Holdout",
         "",
-        _markdown_table(dummy_test.sort_values("mae"), dummy_test_cols),
+        _markdown_table(dummy_test, dummy_test_cols),
         "",
         "## Conservative Read",
         "",
     ]
     if np.isfinite(improvement):
         lines.append(
-            f"The validation-selected rank `{best_model_validation_rank}` finalist improved future-test MAE by `{improvement:.3f}` points versus the best dummy baseline (`{improvement_pct:.1f}%`)."
+            f"The validation-selected rank `{best_model_validation_rank}` finalist improved fixed-future-holdout MAE by `{improvement:.3f}` points versus the preselected `{cfg.baseline_strategy}` baseline (`{improvement_pct:.1f}%`)."
         )
     lines.extend(
         [
-            "The result should be read as evidence of modest wearable-signal association, not reliable night-level prediction. The future test block is one contiguous period, so performance can still be sensitive to nonstationarity and the single-person data context.",
+            "The result should be read as evidence of modest wearable-signal association, not reliable night-level prediction. The fixed future holdout is one contiguous period, so performance can still be sensitive to nonstationarity and the single-person data context.",
             "",
         ]
     )
@@ -2053,7 +2671,8 @@ def plot_stage4_linear_prediction_diagnostics(
     *,
     target_col: str = STAGE4_PRIMARY_TARGET,
     validation_selection_rank: int = 1,
-    splits: Sequence[str] = ("train", "valid", "test"),
+    splits: Sequence[str] = ("dev", "test"),
+    normalize_histogram: bool = True,
     save_path: str | Path | None = None,
     title: str | None = None,
 ) -> Any:
@@ -2089,6 +2708,10 @@ def plot_stage4_linear_prediction_diagnostics(
         "valid": "#F58518",
         "test": "#54A24B",
         "pre_test": "#B279A2",
+        "dev": "#4C78A8",
+        "dev_train": "#4C78A8",
+        "dev_valid": "#F58518",
+        "dev_test": "#54A24B",
     }
     fig, axes = plt.subplots(2, 2, figsize=(12, 8), constrained_layout=True)
     ax_actual, ax_resid_pred, ax_resid_time, ax_hist = axes.ravel()
@@ -2125,6 +2748,7 @@ def plot_stage4_linear_prediction_diagnostics(
         ax_hist.hist(
             split_data["residual"],
             bins=14,
+            density=normalize_histogram,
             alpha=0.45,
             color=color,
             label=split_name,
@@ -2153,8 +2777,8 @@ def plot_stage4_linear_prediction_diagnostics(
 
     ax_hist.axvline(0.0, color="#333333", linewidth=1.1, linestyle="--")
     ax_hist.set_xlabel("Residual")
-    ax_hist.set_ylabel("Rows")
-    ax_hist.set_title("Residual Distribution")
+    ax_hist.set_ylabel("Density" if normalize_histogram else "Rows")
+    ax_hist.set_title("Normalized Residual Distribution" if normalize_histogram else "Residual Distribution")
 
     for ax in axes.ravel():
         ax.grid(True, color="#E6E6E6", linewidth=0.8)
@@ -2173,8 +2797,10 @@ def plot_stage4_linear_prediction_diagnostics(
 def plot_stage4_linear_finalist_metric_comparison(
     final_metrics: pd.DataFrame,
     dummy_metrics: pd.DataFrame,
+    *,
+    baseline_strategy: str = "dummy_median",
 ) -> Any:
-    """Plot post-refit train/valid/test metrics for validation-selected finalists."""
+    """Plot post-refit dev/test metrics for validation-selected finalists."""
     import matplotlib.pyplot as plt
 
     required = {"model_kind", "split", "mae", "rmse", "r2", "validation_selection_rank"}
@@ -2182,37 +2808,34 @@ def plot_stage4_linear_finalist_metric_comparison(
     if missing:
         raise KeyError(f"final_metrics missing required columns: {missing}")
     selected = (
-        final_metrics.loc[final_metrics["split"].isin(["train", "valid", "test"])]
+        final_metrics.loc[final_metrics["split"].isin(["dev", "test"])]
         .sort_values("validation_selection_rank")
         .drop_duplicates(["model_kind", "split"], keep="first")
         .copy()
     )
-    dummy = dummy_metrics.loc[dummy_metrics["split"].isin(["train", "valid", "test"])].copy()
+    dummy = dummy_metrics.loc[dummy_metrics["split"].isin(["dev", "test"])].copy()
     if not dummy.empty:
-        best_dummy_kind = (
-            dummy.loc[dummy["split"].eq("valid")]
-            .sort_values("mae")
-            .iloc[0]["model_kind"]
-        )
+        if baseline_strategy not in set(dummy["model_kind"]):
+            raise KeyError(f"Unknown baseline_strategy: {baseline_strategy}")
         selected = pd.concat(
-            [dummy.loc[dummy["model_kind"].eq(best_dummy_kind)], selected],
+            [dummy.loc[dummy["model_kind"].eq(baseline_strategy)], selected],
             ignore_index=True,
             sort=False,
         )
     if selected.empty:
         raise ValueError("No finalist metrics available for comparison")
 
-    model_order = selected.loc[selected["split"].eq("valid"), "model_kind"].drop_duplicates().tolist()
-    split_colors = {"train": "#3C6E71", "valid": "#C89B4B", "test": "#B54F59"}
+    model_order = selected.loc[selected["split"].eq("dev"), "model_kind"].drop_duplicates().tolist()
+    split_colors = {"dev": "#3C6E71", "test": "#B54F59"}
     fig, axes = plt.subplots(1, 3, figsize=(17, 5.8), constrained_layout=True)
     x_positions = np.arange(len(model_order))
-    bar_width = 0.24
+    bar_width = 0.36
     for ax, metric, title in [
         (axes[0], "mae", "MAE (lower is better)"),
         (axes[1], "rmse", "RMSE (lower is better)"),
         (axes[2], "r2", "R2 (higher is better)"),
     ]:
-        for split_idx, split_name in enumerate(["train", "valid", "test"]):
+        for split_idx, split_name in enumerate(["dev", "test"]):
             values = (
                 selected.loc[selected["split"].eq(split_name)]
                 .set_index("model_kind")
@@ -2220,7 +2843,7 @@ def plot_stage4_linear_finalist_metric_comparison(
                 .to_numpy(dtype=float)
             )
             ax.bar(
-                x_positions + (split_idx - 1) * bar_width,
+                x_positions + (split_idx - 0.5) * bar_width,
                 values,
                 width=bar_width,
                 color=split_colors[split_name],
@@ -2231,11 +2854,73 @@ def plot_stage4_linear_finalist_metric_comparison(
         ax.grid(True, axis="y", color="#E6E6E6")
         if metric == "r2":
             ax.axhline(0.0, color="#333333", linewidth=1.0)
-    axes[1].legend(frameon=False, loc="upper center", ncols=3)
+    axes[1].legend(frameon=False, loc="upper center", ncols=2)
     axes[0].set_ylabel("Metric value")
     fig.suptitle(
-        "Post-Refit Diagnostic: Validation-Selected Model Families vs Best Dummy "
-        "(test is evaluation only)"
+        f"Post-Refit Dev/Test Diagnostic vs Preselected {baseline_strategy} "
+        "(future test is evaluation only)"
+    )
+    return fig
+
+
+def plot_stage4_linear_mixed_validation_family_comparison(
+    tuning_summary: pd.DataFrame,
+    dummy_tuning_summary: pd.DataFrame,
+    *,
+    baseline_strategy: str = "dummy_median",
+) -> Any:
+    """Compare validation-selected model-family representatives across mixed holdouts."""
+    import matplotlib.pyplot as plt
+
+    required = {
+        "model_kind",
+        "selection_rank",
+        "random_mean_train_mae",
+        "random_mean_valid_mae",
+        "temporal_mean_train_mae",
+        "temporal_mean_valid_mae",
+    }
+    missing = sorted(required - set(tuning_summary.columns))
+    if missing:
+        raise KeyError(f"tuning_summary missing mixed-validation columns: {missing}")
+    selected = (
+        tuning_summary.sort_values("selection_rank")
+        .drop_duplicates("model_kind", keep="first")
+        .copy()
+    )
+    baseline = dummy_tuning_summary.loc[dummy_tuning_summary["model_kind"].eq(baseline_strategy)].copy()
+    if baseline.empty:
+        raise KeyError(f"Unknown baseline_strategy: {baseline_strategy}")
+    baseline_row = baseline.iloc[0].to_dict()
+    selected = pd.concat([pd.DataFrame([baseline_row]), selected], ignore_index=True, sort=False)
+
+    model_order = selected["model_kind"].astype(str).tolist()
+    x_positions = np.arange(len(model_order))
+    bar_width = 0.36
+    colors = {"train": "#A3BEFA", "valid": "#F0986E"}
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5.8), constrained_layout=True)
+    for ax, holdout_type, title in [
+        (axes[0], "temporal", "Temporal Holdouts"),
+        (axes[1], "random", "Random Holdouts"),
+    ]:
+        for split_idx, split_name in enumerate(["train", "valid"]):
+            column = f"{holdout_type}_mean_{split_name}_mae"
+            ax.bar(
+                x_positions + (split_idx - 0.5) * bar_width,
+                pd.to_numeric(selected[column], errors="coerce"),
+                width=bar_width,
+                color=colors[split_name],
+                edgecolor="#464C55",
+                linewidth=0.7,
+                label=split_name,
+            )
+        ax.set_xticks(x_positions, labels=model_order, rotation=25, ha="right")
+        ax.set_title(title)
+        ax.set_ylabel("Mean MAE across holdouts")
+        ax.grid(True, axis="y", color="#E6E6E6")
+    axes[1].legend(frameon=False, loc="upper center", ncols=2)
+    fig.suptitle(
+        f"Rerank-Selected Model-Family Representatives vs Preselected {baseline_strategy}"
     )
     return fig
 
@@ -2246,235 +2931,283 @@ def plot_stage4_linear_validation_diagnostics(
     *,
     top_n: int = 25,
     top_per_model_family: int = 5,
+    baseline_strategy: str = "dummy_median",
 ) -> dict[str, Any]:
-    """Build validation-only candidate-distribution and stability diagnostics."""
+    """Build temporal-first validation diagnostics with targeted random-holdout context."""
     import matplotlib.pyplot as plt
 
     data = enrich_stage4_linear_validation_summary(tuning_summary)
-    data = data.loc[np.isfinite(data["mean_valid_mae"])].copy()
+    mixed = {
+        "temporal_mean_train_mae",
+        "temporal_mean_valid_mae",
+        "temporal_std_valid_mae",
+        "random_mean_train_mae",
+        "random_mean_valid_mae",
+        "random_std_valid_mae",
+    } <= set(data.columns)
+    primary_metric = "temporal_mean_valid_mae" if mixed else "mean_valid_mae"
+    primary_std = "temporal_std_valid_mae" if mixed else "std_valid_mae"
+    primary_train = "temporal_mean_train_mae" if mixed else "mean_train_mae"
+    primary_label = "temporal mean validation MAE" if mixed else "mean validation MAE"
+    data = data.loc[np.isfinite(pd.to_numeric(data[primary_metric], errors="coerce"))].copy()
     if data.empty:
         raise ValueError("No finite validation MAE rows available for diagnostics")
     figures: dict[str, Any] = {}
     family_colors = _model_family_colors(data["model_kind"].unique())
+    selected_dummy = dummy_tuning_summary.loc[
+        dummy_tuning_summary["model_kind"].astype(str).eq(baseline_strategy)
+    ]
 
-    fig, ax = plt.subplots(figsize=(9, 5), constrained_layout=True)
-    values = data["mean_valid_mae"].to_numpy(dtype=float)
-    ax.hist(values, bins=min(30, max(8, int(np.sqrt(len(values))))), color="#6B8EAD", alpha=0.65)
-    if len(values) >= 3 and np.unique(values).size >= 3:
-        kde = stats.gaussian_kde(values)
-        x_grid = np.linspace(values.min(), values.max(), 250)
-        bin_width = (values.max() - values.min()) / min(30, max(8, int(np.sqrt(len(values)))))
-        ax.plot(x_grid, kde(x_grid) * len(values) * bin_width, color="#24455F", linewidth=2, label="KDE")
-    best_dummy = _best_dummy_validation_mae(dummy_tuning_summary)
-    ax.axvline(values.min(), color="#2E7D32", linewidth=1.8, label=f"best candidate {values.min():.3f}")
-    ax.axvline(np.median(values), color="#7E57C2", linewidth=1.8, label=f"candidate median {np.median(values):.3f}")
-    if np.isfinite(best_dummy):
-        ax.axvline(best_dummy, color="#C62828", linewidth=1.8, label=f"best dummy {best_dummy:.3f}")
-    ax.set_title("Validation MAE Distribution Across Candidates")
-    ax.set_xlabel("Mean validation MAE across repeated holdouts")
-    ax.set_ylabel("Candidates")
-    ax.legend(frameon=False)
-    ax.grid(True, axis="y", color="#E6E6E6")
+    def dummy_metric(column: str) -> float:
+        if selected_dummy.empty or column not in selected_dummy.columns:
+            return np.nan
+        value = pd.to_numeric(selected_dummy[column], errors="coerce").iloc[0]
+        return float(value) if pd.notna(value) else np.nan
+
+    distribution_specs = (
+        [
+            ("temporal_mean_valid_mae", "Temporal holdouts", "#F0986E"),
+            ("random_mean_valid_mae", "Random holdouts", "#A3BEFA"),
+        ]
+        if mixed
+        else [("mean_valid_mae", "Repeated holdouts", "#A3BEFA")]
+    )
+    fig, axes = plt.subplots(
+        len(distribution_specs),
+        1,
+        figsize=(9, 4.2 * len(distribution_specs)),
+        constrained_layout=True,
+        squeeze=False,
+    )
+    for ax, (metric_col, title, color) in zip(axes.ravel(), distribution_specs):
+        values = pd.to_numeric(data[metric_col], errors="coerce").dropna().to_numpy(dtype=float)
+        bins = min(30, max(8, int(np.sqrt(len(values)))))
+        ax.hist(values, bins=bins, color=color, edgecolor="#464C55", linewidth=0.6, alpha=0.78)
+        ax.axvline(values.min(), color="#386411", linewidth=1.6, label=f"best candidate {values.min():.3f}")
+        ax.axvline(np.median(values), color="#8A3A6F", linewidth=1.6, label=f"candidate median {np.median(values):.3f}")
+        baseline = dummy_metric(metric_col)
+        if np.isfinite(baseline):
+            ax.axvline(baseline, color="#464C55", linewidth=1.5, linestyle="--", label=f"{baseline_strategy} {baseline:.3f}")
+        ax.set_title(title)
+        ax.set_xlabel("Mean validation MAE")
+        ax.set_ylabel("Candidates")
+        ax.legend(frameon=False)
+        ax.grid(True, axis="y", color="#E6E6E6")
+    fig.suptitle("Validation MAE Distribution Across Candidates")
     figures["validation_mae_distribution"] = fig
 
-    top = data.nsmallest(min(top_n, len(data)), "mean_valid_mae").copy()
+    top = data.nsmallest(min(top_n, len(data)), primary_metric).copy()
     fig_height = max(6.5, 0.34 * len(top) + 2.0)
     fig, ax = plt.subplots(figsize=(12, fig_height), constrained_layout=True)
     colors = [family_colors[value] for value in top["model_kind"]]
     ax.barh(
         top["candidate_short_label"],
-        top["mean_valid_mae"],
-        xerr=top.get("std_valid_mae"),
+        top[primary_metric],
+        xerr=top.get(primary_std),
         color=colors,
         alpha=0.85,
         error_kw={"ecolor": "#333333", "elinewidth": 1, "capsize": 2},
     )
     ax.invert_yaxis()
-    ax.set_title(f"Top {len(top)} Candidates By Validation MAE")
-    ax.set_xlabel("Mean validation MAE across repeated holdouts")
+    ax.set_title(f"Top {len(top)} Candidates By {primary_label.title()}")
+    ax.set_xlabel(primary_label)
     ax.set_ylabel("")
-    if np.isfinite(best_dummy):
+    primary_dummy = dummy_metric(primary_metric)
+    if np.isfinite(primary_dummy):
         ax.axvline(
-            best_dummy,
-            color="#C62828",
+            primary_dummy,
+            color="#464C55",
             linewidth=1.5,
             linestyle="--",
-            label=f"best dummy {best_dummy:.3f}",
+            label=f"{baseline_strategy} {primary_dummy:.3f}",
         )
         ax.legend(frameon=False)
     ax.grid(True, axis="x", color="#E6E6E6")
     figures["top_candidates"] = fig
 
     family_order = (
-        data.groupby("model_kind")["mean_valid_mae"].min().sort_values().index.tolist()
+        data.groupby("model_kind")[primary_metric].min().sort_values().index.tolist()
     )
     family_top_parts = [
         data.loc[data["model_kind"].eq(model_kind)]
-        .nsmallest(max(1, int(top_per_model_family)), "mean_valid_mae")
+        .nsmallest(max(1, int(top_per_model_family)), primary_metric)
         .copy()
         for model_kind in family_order
     ]
     family_top = pd.concat(family_top_parts, ignore_index=True)
     fig_height = max(7.0, 0.30 * len(family_top) + 2.0)
-    fig, ax = plt.subplots(figsize=(12, fig_height), constrained_layout=True)
-    ax.barh(
-        family_top["candidate_short_label"],
-        family_top["mean_valid_mae"],
-        xerr=family_top.get("std_valid_mae"),
-        color=[family_colors[value] for value in family_top["model_kind"]],
-        alpha=0.85,
-        error_kw={"ecolor": "#333333", "elinewidth": 1, "capsize": 2},
+    family_specs = (
+        [
+            ("temporal_mean_valid_mae", "temporal_std_valid_mae", "Temporal mean validation MAE"),
+            ("random_mean_valid_mae", "random_std_valid_mae", "Random mean validation MAE"),
+        ]
+        if mixed
+        else [("mean_valid_mae", "std_valid_mae", "Mean validation MAE")]
     )
+    fig, axes = plt.subplots(
+        1,
+        len(family_specs),
+        figsize=(8.5 + 6.0 * (len(family_specs) - 1), fig_height),
+        constrained_layout=True,
+        squeeze=False,
+        sharey=True,
+    )
+    family_axes = axes.ravel()
     family_sizes = family_top.groupby("model_kind", sort=False).size().to_numpy(dtype=int)
-    for boundary in np.cumsum(family_sizes)[:-1] - 0.5:
-        ax.axhline(boundary, color="#C9CDD3", linewidth=1.0)
-    ax.invert_yaxis()
-    ax.set_title(f"Top {max(1, int(top_per_model_family))} Candidates Per Model Family")
-    ax.set_xlabel("Mean validation MAE across repeated holdouts")
-    ax.set_ylabel("")
-    if np.isfinite(best_dummy):
-        ax.axvline(
-            best_dummy,
-            color="#C62828",
-            linewidth=1.5,
-            linestyle="--",
-            label=f"best dummy {best_dummy:.3f}",
+    for axis_idx, (ax, (metric_col, std_col, title)) in enumerate(zip(family_axes, family_specs)):
+        ax.barh(
+            family_top["candidate_short_label"],
+            family_top[metric_col],
+            xerr=family_top.get(std_col),
+            color=[family_colors[value] for value in family_top["model_kind"]],
+            alpha=0.85,
+            error_kw={"ecolor": "#464C55", "elinewidth": 1.0, "capsize": 2},
         )
-        ax.legend(frameon=False)
-    ax.grid(True, axis="x", color="#E6E6E6")
+        for boundary in np.cumsum(family_sizes)[:-1] - 0.5:
+            ax.axhline(boundary, color="#C9CDD3", linewidth=1.0)
+        ax.set_title(title)
+        ax.set_xlabel("MAE")
+        ax.grid(True, axis="x", color="#E6E6E6")
+        if axis_idx > 0:
+            ax.tick_params(axis="y", labelleft=False)
+            ax.set_ylabel("")
+    family_axes[0].invert_yaxis()
+    fig.suptitle(f"Top {max(1, int(top_per_model_family))} Temporal-Ranked Candidates Per Model Family")
     figures["top_candidates_by_model_family"] = fig
 
     best_by_family = (
-        data.sort_values("mean_valid_mae")
+        data.sort_values(primary_metric)
         .drop_duplicates("model_kind")
-        .sort_values("mean_valid_mae")
+        .sort_values(primary_metric)
         .copy()
     )
-    dummy_best_row = _best_dummy_validation_row(dummy_tuning_summary)
-    if dummy_best_row is not None:
-        dummy_family_row = {
-            "model_kind": str(dummy_best_row["model_kind"]),
-            "mean_train_mae": dummy_best_row.get("mean_train_mae", np.nan),
-            "mean_valid_mae": dummy_best_row.get("mean_valid_mae", np.nan),
-            "mean_train_rmse": dummy_best_row.get("mean_train_rmse", np.nan),
-            "mean_valid_rmse": dummy_best_row.get("mean_valid_rmse", np.nan),
-            "mean_train_r2": dummy_best_row.get("mean_train_r2", np.nan),
-            "mean_valid_r2": dummy_best_row.get("mean_valid_r2", np.nan),
-        }
-        best_by_family = pd.concat(
-            [pd.DataFrame([dummy_family_row]), best_by_family],
-            ignore_index=True,
-        )
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5.8), constrained_layout=True)
+    if not selected_dummy.empty:
+        best_by_family = pd.concat([selected_dummy, best_by_family], ignore_index=True, sort=False)
+    comparison_specs = (
+        [
+            ("temporal", "Temporal holdouts"),
+            ("random", "Random holdouts"),
+        ]
+        if mixed
+        else [("", "Repeated holdouts")]
+    )
+    fig, axes = plt.subplots(1, len(comparison_specs), figsize=(8.5 * len(comparison_specs), 5.8), constrained_layout=True, squeeze=False)
     x_positions = np.arange(len(best_by_family))
     bar_width = 0.36
-    for ax, metric, title in [
-        (axes[0], "mae", "MAE (lower is better)"),
-        (axes[1], "rmse", "RMSE (lower is better)"),
-        (axes[2], "r2", "R2 (higher is better)"),
-    ]:
+    for ax, (prefix, title) in zip(axes.ravel(), comparison_specs):
+        train_col = f"{prefix}_mean_train_mae" if prefix else "mean_train_mae"
+        valid_col = f"{prefix}_mean_valid_mae" if prefix else "mean_valid_mae"
         ax.bar(
             x_positions - bar_width / 2,
-            best_by_family[f"mean_train_{metric}"],
+            best_by_family[train_col],
             width=bar_width,
             label="train",
-            color="#3C6E71",
+            color="#A3BEFA",
+            edgecolor="#464C55",
+            linewidth=0.7,
         )
         ax.bar(
             x_positions + bar_width / 2,
-            best_by_family[f"mean_valid_{metric}"],
+            best_by_family[valid_col],
             width=bar_width,
             label="valid",
-            color="#C89B4B",
+            color="#F0986E",
+            edgecolor="#464C55",
+            linewidth=0.7,
         )
         ax.set_xticks(x_positions, labels=best_by_family["model_kind"], rotation=25, ha="right")
         ax.set_title(title)
+        ax.set_ylabel("Mean MAE")
         ax.grid(True, axis="y", color="#E6E6E6")
-        if metric == "r2":
-            ax.axhline(0.0, color="#333333", linewidth=1.0)
-    axes[0].set_ylabel("Metric value")
-    axes[1].legend(frameon=False, loc="upper center", ncols=2)
-    fig.suptitle("Validation-Selected Best Candidate Per Model Family vs Best Dummy")
+    axes.ravel()[-1].legend(frameon=False, loc="upper center", ncols=2)
+    fig.suptitle(f"Temporal-Ranked Best Candidate Per Model Family vs {baseline_strategy}")
     figures["best_by_model_family"] = fig
 
-    fig, ax = plt.subplots(figsize=(10, 5.5), constrained_layout=True)
-    family_values = [
-        data.loc[data["model_kind"].eq(model_kind), "mean_valid_mae"].to_numpy(dtype=float)
-        for model_kind in family_order
-    ]
-    box = ax.boxplot(family_values, tick_labels=family_order, patch_artist=True, showfliers=True)
-    for patch, model_kind in zip(box["boxes"], family_order):
-        patch.set_facecolor(family_colors[model_kind])
-        patch.set_alpha(0.65)
-    ax.set_title("Validation MAE Distribution By Model Family")
-    ax.set_xlabel("Model family")
-    ax.set_ylabel("Mean validation MAE")
-    if np.isfinite(best_dummy):
-        ax.axhline(
-            best_dummy,
-            color="#C62828",
-            linewidth=1.5,
-            linestyle="--",
-            label=f"best dummy {best_dummy:.3f}",
-        )
+    fig, ax = plt.subplots(figsize=(12, 5.8), constrained_layout=True)
+    positions = np.arange(len(family_order), dtype=float)
+    if mixed:
+        temporal_values = [data.loc[data["model_kind"].eq(model_kind), "temporal_mean_valid_mae"].to_numpy(dtype=float) for model_kind in family_order]
+        random_values = [data.loc[data["model_kind"].eq(model_kind), "random_mean_valid_mae"].to_numpy(dtype=float) for model_kind in family_order]
+        temporal_box = ax.boxplot(temporal_values, positions=positions - 0.18, widths=0.30, patch_artist=True, showfliers=False)
+        random_box = ax.boxplot(random_values, positions=positions + 0.18, widths=0.30, patch_artist=True, showfliers=False)
+        for patch in temporal_box["boxes"]:
+            patch.set_facecolor("#F0986E")
+        for patch in random_box["boxes"]:
+            patch.set_facecolor("#A3BEFA")
+        ax.plot([], [], color="#F0986E", linewidth=8, label="temporal")
+        ax.plot([], [], color="#A3BEFA", linewidth=8, label="random")
         ax.legend(frameon=False)
+    else:
+        family_values = [data.loc[data["model_kind"].eq(model_kind), "mean_valid_mae"].to_numpy(dtype=float) for model_kind in family_order]
+        box = ax.boxplot(family_values, positions=positions, widths=0.55, patch_artist=True, showfliers=True)
+        for patch, model_kind in zip(box["boxes"], family_order):
+            patch.set_facecolor(family_colors[model_kind])
+    ax.set_xticks(positions, labels=family_order)
+    ax.set_title("Validation MAE Distribution By Model Family And Holdout Type")
+    ax.set_xlabel("Model family")
+    ax.set_ylabel("Mean validation MAE across holdouts")
     ax.grid(True, axis="y", color="#E6E6E6")
     figures["model_family_distribution"] = fig
 
     fig, ax = plt.subplots(figsize=(9, 5.5), constrained_layout=True)
     for model_kind, family_data in data.groupby("model_kind"):
         ax.scatter(
-            family_data["mean_train_mae"],
-            family_data["mean_valid_mae"],
+            family_data[primary_train],
+            family_data[primary_metric],
             alpha=0.65,
             s=32,
             label=model_kind,
             color=family_colors[model_kind],
         )
-    low = float(np.nanmin([data["mean_train_mae"].min(), data["mean_valid_mae"].min()]))
-    high = float(np.nanmax([data["mean_train_mae"].max(), data["mean_valid_mae"].max()]))
+    low = float(np.nanmin([data[primary_train].min(), data[primary_metric].min()]))
+    high = float(np.nanmax([data[primary_train].max(), data[primary_metric].max()]))
     ax.plot([low, high], [low, high], linestyle="--", color="#333333", linewidth=1.2)
-    if dummy_best_row is not None:
-        ax.scatter(
-            [dummy_best_row.get("mean_train_mae", np.nan)],
-            [dummy_best_row.get("mean_valid_mae", np.nan)],
-            color="#C62828",
-            marker="X",
-            s=85,
-            label=str(dummy_best_row["model_kind"]),
-        )
-    ax.set_title("Train vs Validation MAE")
-    ax.set_xlabel("Mean train MAE")
-    ax.set_ylabel("Mean validation MAE")
+    ax.set_title("Temporal Train vs Validation MAE" if mixed else "Train vs Validation MAE")
+    ax.set_xlabel("Temporal mean train MAE" if mixed else "Mean train MAE")
+    ax.set_ylabel(primary_label)
     ax.legend(frameon=False, ncols=2)
     ax.grid(True, color="#E6E6E6")
     figures["train_validation_gap"] = fig
 
-    fig, ax = plt.subplots(figsize=(9, 5.5), constrained_layout=True)
-    for model_kind, family_data in data.groupby("model_kind"):
-        ax.scatter(
-            family_data["mean_valid_mae"],
-            family_data["std_valid_mae"],
-            alpha=0.65,
-            s=32,
-            label=model_kind,
-            color=family_colors[model_kind],
-        )
-    if dummy_best_row is not None:
-        ax.scatter(
-            [dummy_best_row.get("mean_valid_mae", np.nan)],
-            [dummy_best_row.get("std_valid_mae", np.nan)],
-            color="#C62828",
-            marker="X",
-            s=85,
-            label=str(dummy_best_row["model_kind"]),
-        )
-    ax.set_title("Validation Performance And Holdout Stability")
-    ax.set_xlabel("Mean validation MAE")
-    ax.set_ylabel("Validation MAE standard deviation")
-    ax.legend(frameon=False, ncols=2)
-    ax.grid(True, color="#E6E6E6")
+    stability_specs = (
+        [
+            ("temporal_mean_valid_mae", "temporal_std_valid_mae", "Temporal holdout stability"),
+            ("random_mean_valid_mae", "random_std_valid_mae", "Random holdout stability"),
+        ]
+        if mixed
+        else [("mean_valid_mae", "std_valid_mae", "Repeated-holdout stability")]
+    )
+    fig, axes = plt.subplots(1, len(stability_specs), figsize=(8.5 * len(stability_specs), 5.5), constrained_layout=True, squeeze=False)
+    for ax, (mean_col, std_col, title) in zip(axes.ravel(), stability_specs):
+        for model_kind, family_data in data.groupby("model_kind"):
+            ax.scatter(family_data[mean_col], family_data[std_col], alpha=0.65, s=32, label=model_kind, color=family_colors[model_kind])
+        ax.set_title(title)
+        ax.set_xlabel("Mean validation MAE")
+        ax.set_ylabel("Validation MAE standard deviation")
+        ax.grid(True, color="#E6E6E6")
+    axes.ravel()[-1].legend(frameon=False, ncols=2)
     figures["performance_stability"] = fig
+
+    if mixed:
+        fig, ax = plt.subplots(figsize=(9, 5.8), constrained_layout=True)
+        for model_kind, family_data in data.groupby("model_kind"):
+            ax.scatter(
+                family_data["random_mean_valid_mae"],
+                family_data["temporal_mean_valid_mae"],
+                alpha=0.65,
+                s=32,
+                label=model_kind,
+                color=family_colors[model_kind],
+            )
+        low = float(np.nanmin([data["random_mean_valid_mae"].min(), data["temporal_mean_valid_mae"].min()]))
+        high = float(np.nanmax([data["random_mean_valid_mae"].max(), data["temporal_mean_valid_mae"].max()]))
+        ax.plot([low, high], [low, high], linestyle="--", color="#333333", linewidth=1.2)
+        ax.set_title("Random vs Temporal Validation MAE")
+        ax.set_xlabel("Random mean validation MAE")
+        ax.set_ylabel("Temporal mean validation MAE")
+        ax.legend(frameon=False, ncols=2)
+        ax.grid(True, color="#E6E6E6")
+        figures["random_vs_temporal"] = fig
 
     if (
         "mean_selected_feature_count" in data.columns
@@ -2484,95 +3217,106 @@ def plot_stage4_linear_validation_diagnostics(
         for model_kind, family_data in data.groupby("model_kind"):
             ax.scatter(
                 family_data["mean_selected_feature_count"],
-                family_data["mean_valid_mae"],
+                family_data[primary_metric],
                 alpha=0.65,
                 s=34,
                 label=model_kind,
                 color=family_colors[model_kind],
             )
-        if np.isfinite(best_dummy):
-            ax.axhline(
-                best_dummy,
-                color="#C62828",
-                linewidth=1.5,
-                linestyle="--",
-                label=f"best dummy {best_dummy:.3f}",
-            )
-        ax.set_title("Validation MAE vs Selected Feature Count")
+        ax.set_title(f"{primary_label.title()} vs Selected Feature Count")
         ax.set_xlabel("Mean selected feature count")
-        ax.set_ylabel("Mean validation MAE")
+        ax.set_ylabel(primary_label)
         ax.legend(frameon=False, ncols=2)
         ax.grid(True, color="#E6E6E6")
         figures["feature_count_tradeoff"] = fig
 
-    if data["feature_selection_config_label"].nunique() > 1:
-        selector_count = int(data["feature_selection_config_label"].nunique())
-        fig, ax = plt.subplots(
-            figsize=(11.5, max(5.5, 0.48 * selector_count + 2.0)),
-            constrained_layout=True,
-        )
-        _boxplot_by_group(
-            ax,
-            data,
-            group_col="feature_selection_config_label",
-            value_col="mean_valid_mae",
-            title="Validation MAE Distribution By Feature Selector",
-            group_label="Feature-selector configuration",
-            value_label="Mean validation MAE",
-            zero_reference=False,
-            group_color_map=_feature_selector_color_map(
-                data["feature_selection_config_label"].unique()
-            ),
-            group_family_map=_feature_selector_family_map(
-                data["feature_selection_config_label"].unique()
-            ),
-            legend_title="Selector family",
-        )
-        figures["feature_selector_distribution"] = fig
     return figures
 
 
 def plot_stage4_linear_hyperparameter_diagnostics(
     tuning_summary: pd.DataFrame,
     dummy_tuning_summary: pd.DataFrame | None = None,
+    *,
+    baseline_strategy: str = "dummy_median",
 ) -> dict[str, Any]:
-    """Plot validation-only hyperparameter curves and two-parameter heatmaps."""
+    """Plot temporal-first hyperparameter curves and temporal heatmaps."""
     import matplotlib.pyplot as plt
 
     data = enrich_stage4_linear_validation_summary(tuning_summary)
-    data = data.loc[np.isfinite(data["mean_valid_mae"])].copy()
+    mixed = {"temporal_mean_valid_mae", "random_mean_valid_mae"} <= set(data.columns)
+    primary_metric = "temporal_mean_valid_mae" if mixed else "mean_valid_mae"
+    data = data.loc[np.isfinite(data[primary_metric])].copy()
     figures: dict[str, Any] = {}
-    best_dummy = (
-        _best_dummy_validation_mae(dummy_tuning_summary)
-        if dummy_tuning_summary is not None
-        else np.nan
+    selected_dummy = (
+        dummy_tuning_summary.loc[dummy_tuning_summary["model_kind"].astype(str).eq(baseline_strategy)]
+        if dummy_tuning_summary is not None and not dummy_tuning_summary.empty
+        else pd.DataFrame()
     )
-    for model_kind, parameter in [("ridge", "alpha"), ("lasso", "alpha"), ("pls", "n_components")]:
+    parameter_curves = [
+        ("ridge", "alpha"),
+        ("lasso", "alpha"),
+        ("pls", "n_components"),
+        ("elastic_net", "alpha"),
+        ("elastic_net", "l1_ratio"),
+        ("huber", "alpha"),
+        ("huber", "epsilon"),
+    ]
+    for model_kind, parameter in parameter_curves:
         model_data = data.loc[data["model_kind"].eq(model_kind)].dropna(subset=[parameter])
         if model_data.empty:
             continue
-        grouped = model_data.groupby(parameter)["mean_valid_mae"].agg(best="min", median="median").reset_index()
         fig, ax = plt.subplots(figsize=(8.5, 5), constrained_layout=True)
-        ax.scatter(
-            model_data[parameter],
-            model_data["mean_valid_mae"],
-            color="#9AA7B2",
-            alpha=0.35,
-            s=24,
-            label="all candidates",
+        metric_specs = (
+            [
+                ("temporal_mean_valid_mae", "temporal", "-"),
+                ("random_mean_valid_mae", "random", "--"),
+            ]
+            if mixed
+            else [("mean_valid_mae", "repeated holdouts", "-")]
         )
-        ax.plot(grouped[parameter], grouped["median"], marker="o", color="#4C78A8", label="median")
-        ax.plot(grouped[parameter], grouped["best"], marker="o", color="#E45756", label="best")
-        if np.isfinite(best_dummy):
-            ax.axhline(best_dummy, color="#C62828", linestyle="--", linewidth=1.3, label="best dummy")
+        for metric_col, holdout_label, linestyle in metric_specs:
+            grouped = model_data.groupby(parameter)[metric_col].agg(best="min", median="median").reset_index()
+            ax.plot(
+                grouped[parameter],
+                grouped["median"],
+                marker="o",
+                color="#5477C4",
+                linestyle=linestyle,
+                label=f"{holdout_label} median",
+            )
+            ax.plot(
+                grouped[parameter],
+                grouped["best"],
+                marker="o",
+                color="#CC6F47",
+                linestyle=linestyle,
+                label=f"{holdout_label} best",
+            )
+            if not selected_dummy.empty and metric_col in selected_dummy.columns:
+                baseline = float(selected_dummy.iloc[0][metric_col])
+                ax.axhline(
+                    baseline,
+                    color="#464C55",
+                    linestyle=linestyle,
+                    linewidth=1.0,
+                    alpha=0.65,
+                    label=f"{baseline_strategy} {holdout_label}",
+                )
         if parameter == "alpha" and bool((grouped[parameter] > 0).all()):
             ax.set_xscale("log")
-        ax.set_title(f"{model_kind.replace('_', ' ').title()} Hyperparameter Validation Curve")
+        ax.set_title(
+            f"{model_kind.replace('_', ' ').title()} {parameter} Validation Curves"
+        )
         ax.set_xlabel(parameter)
         ax.set_ylabel("Mean validation MAE")
         ax.legend(frameon=False)
         ax.grid(True, color="#E6E6E6")
-        figures[model_kind] = fig
+        figure_key = (
+            model_kind
+            if model_kind in {"ridge", "lasso", "pls"}
+            else f"{model_kind}_{parameter}"
+        )
+        figures[figure_key] = fig
 
     for model_kind, x_col, y_col in [
         ("elastic_net", "alpha", "l1_ratio"),
@@ -2584,7 +3328,7 @@ def plot_stage4_linear_hyperparameter_diagnostics(
         pivot = model_data.pivot_table(
             index=y_col,
             columns=x_col,
-            values="mean_valid_mae",
+            values=primary_metric,
             aggfunc="min",
         ).sort_index().sort_index(axis=1)
         fig_width = min(10.0, max(6.5, 0.62 * len(pivot.columns) + 3.0))
@@ -2596,7 +3340,8 @@ def plot_stage4_linear_hyperparameter_diagnostics(
         ax.tick_params(axis="x", labelrotation=35)
         ax.set_xlabel(x_col)
         ax.set_ylabel(y_col)
-        ax.set_title(f"{model_kind.replace('_', ' ').title()} Best Validation MAE Heatmap")
+        metric_title = "Temporal Mean Validation MAE" if mixed else "Mean Validation MAE"
+        ax.set_title(f"{model_kind.replace('_', ' ').title()} Best {metric_title} Heatmap")
         annotation_font_size = 7 if max(pivot.shape) >= 8 else 8
         for row_idx in range(len(pivot.index)):
             for col_idx in range(len(pivot.columns)):
@@ -2612,16 +3357,7 @@ def plot_stage4_linear_hyperparameter_diagnostics(
                         fontsize=annotation_font_size,
                         color=text_color,
                     )
-        fig.colorbar(image, ax=ax, label="Best mean validation MAE")
-        if np.isfinite(best_dummy):
-            fig.text(
-                0.99,
-                0.01,
-                f"Best dummy validation MAE: {best_dummy:.3f}",
-                ha="right",
-                va="bottom",
-                fontsize=9,
-            )
+        fig.colorbar(image, ax=ax, label=f"Best {metric_title.lower()}")
         figures[model_kind] = fig
     return figures
 
@@ -2629,11 +3365,22 @@ def plot_stage4_linear_hyperparameter_diagnostics(
 def plot_stage4_linear_factor_comparisons(
     tuning_summary: pd.DataFrame,
 ) -> dict[str, Any]:
-    """Plot paired validation-MAE effects for optional grid dimensions."""
+    """Plot paired temporal-validation-MAE effects for optional grid dimensions."""
     import matplotlib.pyplot as plt
 
     data = enrich_stage4_linear_validation_summary(tuning_summary)
-    data = data.loc[np.isfinite(data["mean_valid_mae"])].copy()
+    primary_metric = (
+        "temporal_mean_valid_mae"
+        if "temporal_mean_valid_mae" in data.columns
+        else "mean_valid_mae"
+    )
+    metric_label = (
+        "temporal mean validation MAE"
+        if primary_metric == "temporal_mean_valid_mae"
+        else "mean validation MAE"
+    )
+    title_scope = "Temporal " if primary_metric == "temporal_mean_valid_mae" else ""
+    data = data.loc[np.isfinite(data[primary_metric])].copy()
     figures: dict[str, Any] = {}
 
     if {"none", "linear"} <= set(data["calibration"].astype(str)):
@@ -2641,22 +3388,23 @@ def plot_stage4_linear_factor_comparisons(
             data,
             factor="calibration",
             reference="none",
+            metric_col=primary_metric,
         )
         if not deltas.empty:
             fig, axes = plt.subplots(1, 2, figsize=(14, 5.2), constrained_layout=True)
             axes[0].hist(deltas["delta_mean_valid_mae"], bins=min(24, max(6, int(np.sqrt(len(deltas))))), color="#6B8EAD", alpha=0.75)
             axes[0].axvline(0.0, color="#333333", linestyle="--", linewidth=1.2)
-            axes[0].set_title("Linear Calibration Paired Delta")
-            axes[0].set_xlabel("Delta mean validation MAE: linear - none")
+            axes[0].set_title(f"{title_scope}Linear Calibration Paired Delta")
+            axes[0].set_xlabel(f"Delta {metric_label}: linear - none")
             axes[0].set_ylabel("Matched candidates")
             _boxplot_by_group(
                 axes[1],
                 deltas,
                 group_col="model_kind",
                 value_col="delta_mean_valid_mae",
-                title="Calibration Delta By Model Family",
+                title=f"{title_scope}Calibration Delta By Model Family",
                 group_label="Model family",
-                value_label="Delta mean validation MAE",
+                value_label=f"Delta {metric_label}",
             )
             figures["calibration_comparison"] = fig
 
@@ -2665,26 +3413,25 @@ def plot_stage4_linear_factor_comparisons(
             data,
             factor="feature_selection",
             reference="none",
+            metric_col=primary_metric,
         )
         if not deltas.empty:
             selector_count = max(
                 int(data["feature_selection_config_label"].nunique()),
                 int(deltas["factor_value"].nunique()),
             )
-            fig, axes = plt.subplots(
-                2,
-                1,
-                figsize=(12, max(9.0, 0.9 * selector_count + 5.0)),
+            fig, ax = plt.subplots(
+                figsize=(12, max(6.0, 0.48 * selector_count + 2.5)),
                 constrained_layout=True,
             )
             _boxplot_by_group(
-                axes[0],
+                ax,
                 data,
                 group_col="feature_selection_config_label",
-                value_col="mean_valid_mae",
-                title="Validation MAE By Feature Selector",
+                value_col=primary_metric,
+                title=f"{metric_label.title()} By Feature Selector",
                 group_label="Feature selector",
-                value_label="Mean validation MAE",
+                value_label=metric_label,
                 zero_reference=False,
                 group_color_map=_feature_selector_color_map(
                     data["feature_selection_config_label"].unique()
@@ -2694,14 +3441,20 @@ def plot_stage4_linear_factor_comparisons(
                 ),
                 legend_title="Selector family",
             )
+            figures["feature_selection_distribution"] = fig
+
+            fig, ax = plt.subplots(
+                figsize=(12, max(6.0, 0.48 * selector_count + 2.5)),
+                constrained_layout=True,
+            )
             _boxplot_by_group(
-                axes[1],
+                ax,
                 deltas,
                 group_col="factor_value",
                 value_col="delta_mean_valid_mae",
-                title="Feature Selector Paired Delta vs none",
+                title=f"{title_scope}Feature Selector Paired Delta vs none",
                 group_label="Feature selector",
-                value_label="Delta mean validation MAE",
+                value_label=f"Delta {metric_label}",
                 group_color_map=_feature_selector_color_map(
                     deltas["factor_value"].unique()
                 ),
@@ -2710,13 +3463,14 @@ def plot_stage4_linear_factor_comparisons(
                 ),
                 legend_title="Selector family",
             )
-            figures["feature_selection_comparison"] = fig
+            figures["feature_selection_paired_delta"] = fig
 
     if "none" in set(data["robust_clip"].astype(str)) and data["robust_clip"].astype(str).nunique() > 1:
         deltas = build_stage4_linear_paired_deltas(
             data,
             factor="robust_clip",
             reference="none",
+            metric_col=primary_metric,
         )
         if not deltas.empty:
             deltas = deltas.copy()
@@ -2763,8 +3517,8 @@ def plot_stage4_linear_factor_comparisons(
                     linestyle=":",
                 )
             axes[0].axvline(0.0, color="#333333", linestyle="--", linewidth=1.2)
-            axes[0].set_title("Robust Clipping Paired Delta Distributions")
-            axes[0].set_xlabel("Delta mean validation MAE vs none")
+            axes[0].set_title(f"{title_scope}Robust Clipping Paired Delta Distributions")
+            axes[0].set_xlabel(f"Delta {metric_label} vs none")
             axes[0].set_ylabel("Density")
             axes[0].legend(frameon=False)
             axes[0].grid(True, axis="y", color="#E6E6E6")
@@ -2773,20 +3527,25 @@ def plot_stage4_linear_factor_comparisons(
                 deltas,
                 group_col="family_and_clip",
                 value_col="delta_mean_valid_mae",
-                title="Robust Clipping Delta By Model Family",
+                title=f"{title_scope}Robust Clipping Delta By Model Family",
                 group_label="Model family and clipping",
-                value_label="Delta mean validation MAE",
+                value_label=f"Delta {metric_label}",
             )
             figures["robust_clipping_comparison"] = fig
 
     for factor, reference, title in [
-        ("target_transform", "none", "Target Transform Paired Delta vs none"),
-        ("prediction_clip", "none", "Prediction Clipping Paired Delta vs none"),
+        ("target_transform", "none", f"{title_scope}Target Transform Paired Delta vs none"),
+        ("prediction_clip", "none", f"{title_scope}Prediction Clipping Paired Delta vs none"),
     ]:
         values = set(data[factor].astype(str))
         if reference not in values or len(values) <= 1:
             continue
-        deltas = build_stage4_linear_paired_deltas(data, factor=factor, reference=reference)
+        deltas = build_stage4_linear_paired_deltas(
+            data,
+            factor=factor,
+            reference=reference,
+            metric_col=primary_metric,
+        )
         if deltas.empty:
             continue
         fig, axes = plt.subplots(1, 2, figsize=(15, 5.2), constrained_layout=True)
@@ -2797,7 +3556,7 @@ def plot_stage4_linear_factor_comparisons(
             value_col="delta_mean_valid_mae",
             title=title,
             group_label=factor,
-            value_label="Delta mean validation MAE",
+            value_label=f"Delta {metric_label}",
         )
         _boxplot_by_group(
             axes[1],
@@ -2806,7 +3565,7 @@ def plot_stage4_linear_factor_comparisons(
             value_col="delta_mean_valid_mae",
             title=f"{title} By Model Family",
             group_label="Model family",
-            value_label="Delta mean validation MAE",
+            value_label=f"Delta {metric_label}",
         )
         figures[f"{factor}_comparison"] = fig
     return figures
@@ -3736,7 +4495,11 @@ def _feature_blocks(frame: pd.DataFrame, feature_columns: Sequence[str]) -> tupl
 def _numeric_imputed_frame(frame: pd.DataFrame, columns: Sequence[str]) -> pd.DataFrame:
     data: dict[str, pd.Series] = {}
     for column in columns:
-        values = pd.to_numeric(frame[column], errors="coerce").replace([np.inf, -np.inf], np.nan)
+        values = (
+            pd.to_numeric(frame[column], errors="coerce")
+            .astype("float64")
+            .replace([np.inf, -np.inf], np.nan)
+        )
         median = values.median()
         if not np.isfinite(median):
             median = 0.0

@@ -20,7 +20,7 @@ This repo now has two layers:
 - [Stage 1.5](sql_layer.md): optional SQL mart (DuckDB primary + PostgreSQL showcase)
 - [Stage 2](stage2.md): EDA notebooks and interpretation
 - [Stage 3](stage3.md): initial validation and modeling
-- [Stage 4](stage4_monitoring.md): minute-level FIT monitoring extension, sleep-outcome modeling frame, and first linear-family next-sleep stress model
+- [Stage 4](stage4_monitoring.md): minute-level FIT monitoring extension, state-context modeling frame, and mixed-validation linear-family next-sleep stress model
 
 ## Documentation map
 
@@ -68,7 +68,7 @@ This repo now has two layers:
 - **Notebooks (Stage 4)**
 	- `notebooks/07_monitoring_fit_eda.ipynb` (minute-level monitoring EDA and day browser)
 	- `notebooks/08_sleep_outcome_modeling_frame.ipynb` (target alignment, eligibility, split, and feature-set audit)
-	- `notebooks/09_sleep_stress_linear_models.ipynb` (first linear-family regression pass for next-sleep average stress)
+	- `notebooks/09_sleep_stress_linear_models.ipynb` (two-stage mixed-validation linear-family regression for next-sleep average stress)
 - **Monitoring and modeling outputs (Stage 4)**
 	- `data/processed/monitoring_heart_rate.parquet`
 	- `data/processed/monitoring_stress.parquet`
@@ -85,6 +85,7 @@ This repo now has two layers:
 	- `reports/stage4_sleep_stress_linear_model_leaderboard.csv`
 	- `reports/stage4_sleep_stress_linear_best_by_model_family.csv`
 	- `reports/stage4_sleep_stress_linear_rank1_feature_importance.csv`
+	- `reports/stage4_sleep_stress_linear_feature_set_standard_benchmark.csv`
 	- `docs/img/stage4_linear_prediction_diagnostics.png`
 	- `docs/img/stage4_linear_feature_importance.png`
 

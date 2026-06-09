@@ -11,7 +11,7 @@ This report documents the reusable Stage 4 `day D -> next sleep` modeling frame.
 ## Frame Shape
 
 - Rows: `589`
-- Columns: `295`
+- Columns: `324`
 - Date range: `2023-05-27 to 2026-05-18`
 
 ## Row And Target Availability
@@ -58,12 +58,18 @@ The test split is the final time block among eligible rows with the primary targ
 | aggregate_stage3_baseline | 33 | 32 | 1 | 469 | 0.000 | 0.636 | aggregate Stage 3 |
 | monitoring_core_wake_pre_sleep | 56 | 56 | 0 | 464 | 0.000 | 1.271 | monitoring core v0 |
 | monitoring_full_wake_pre_sleep | 123 | 123 | 0 | 393 | 0.000 | 15.254 | monitoring full v0 catalog |
+| monitoring_full_wake_pre_sleep_plus_prev_sleep | 133 | 133 | 0 | 392 | 0.000 | 15.254 | monitoring full v0 plus previous sleep context |
+| monitoring_full_wake_pre_sleep_plus_history | 133 | 133 | 0 | 392 | 0.000 | 15.254 | monitoring full v0 plus recent sleep history |
+| monitoring_full_wake_pre_sleep_plus_state | 148 | 148 | 0 | 391 | 0.000 | 15.254 | monitoring full v0 plus state context |
 | aggregate_plus_monitoring_full | 138 | 137 | 1 | 393 | 0.000 | 15.254 | monitoring full v0 plus aggregate context |
+| monitoring_full_wake_pre_sleep_plus_state_plus_aggregate | 180 | 179 | 1 | 388 | 0.000 | 15.254 | monitoring full v0 plus state and aggregate context |
 
 ## Leakage Controls
 
 - Monitoring predictors are limited to wake and pre-sleep columns.
 - Sleep-phase monitoring columns remain out of the predictor feature sets in this frame.
+- Previous-sleep context features use the completed sleep before the wake window, not the modeled next sleep.
+- Recent-history and current-day deviation features use prior rows only, with partial windows allowed and first-observation means left missing. `hist3_*` and `hist7_*` refer to prior analysis rows, not fixed calendar-day windows.
 - Quality and boundary diagnostics are retained for audit, not as ordinary predictors.
 - Sleep-start local time is included as schedule context because the wake/pre-sleep feature window is defined at sleep onset.
 - Next-sleep duration/opportunity remains target/audit context, not an ordinary predictor.

@@ -152,21 +152,24 @@ notebook, and companion reports:
 - `notebooks/07_monitoring_fit_eda.ipynb`: monitoring inventory, quality funnel, coverage diagnostics, feature-table overview, and a minute-level semantic-day browser.
 - `reports/monitoring_eda_summary.md`: compact EDA summary for the current refreshed monitoring run.
 - `notebooks/08_sleep_outcome_modeling_frame.ipynb`: target, eligibility, split, feature-set, and aggregate-candidate audit for the next sleep-outcome modeling pass.
-- `notebooks/09_sleep_stress_linear_models.ipynb`: configurable repeated-holdout linear-family regression pass for next-sleep average stress.
+- `notebooks/09_sleep_stress_linear_models.ipynb`: configurable two-stage mixed-holdout linear-family regression pass for next-sleep average stress.
 - `reports/stage4_sleep_modeling_frame_summary.md`: reusable `day D -> next sleep` modeling-frame contract.
 - `reports/stage4_sleep_modeling_feature_sets.md`: named aggregate, monitoring-core, monitoring-full, and combined feature spaces.
-- `reports/stage4_sleep_stress_linear_models_summary.md`: validation-selected linear-model results and future-test dummy-baseline comparison.
-- `reports/stage4_sleep_stress_linear_model_leaderboard.csv`: validation leaderboard with future-test metrics for selected finalists.
-- `reports/stage4_sleep_stress_linear_model_grid.csv`: one-row-per-candidate audit of the linear experiment grid.
+- `reports/stage4_sleep_stress_linear_models_summary.md`: validation-selected linear-model results and fixed-future-holdout baseline comparison.
+- `reports/stage4_sleep_stress_linear_model_leaderboard.csv`: validation leaderboard with fixed-future-holdout metrics for selected finalists.
+- `reports/stage4_sleep_stress_linear_model_grid.csv`: one-row-per-candidate audit of the definitive representative-shortlist rerank.
 - `reports/stage4_sleep_stress_linear_best_by_model_family.csv`: compact validation-ranked comparison across linear model families and dummy baselines.
 - `reports/stage4_sleep_stress_linear_rank1_feature_importance.csv`: coefficient and validation permutation-importance table for the validation rank-1 model.
+- `reports/stage4_sleep_stress_linear_feature_set_standard_benchmark.csv`: compact standard-preset comparison across the named Stage 4 feature sets.
 - `docs/img/stage4_linear_prediction_diagnostics.png`: diagnostic panel for the validation-selected rank-1 finalist.
 - `docs/img/stage4_linear_feature_importance.png`: rank-1 standardized-coefficient and validation permutation-importance diagnostic.
 
 Notebook 07 is the right entry point for understanding what the monitoring data contains and how quality filtering changes the usable row set.
 The notebook reads the current `data/processed/*.parquet` monitoring outputs directly and summarizes the feature families available for modeling.
 Notebook 08 then checks the modeling frame before any model family is fit.
-Notebook 09 makes the first modeling pass, exposes the main experiment controls and pre-fit cost plan, separates validation-only diagnostics from finalist refit, and keeps the final future test block reserved for validation-selected finalists. Its saved outputs preserve an expanded linear-family run, while the visible rerun defaults use a smaller preset with an explicit safety gate.
+Notebook 09 makes the public modeling pass, exposes the main experiment controls and pre-fit cost plan, separates validation-only diagnostics from finalist refit, and keeps a fixed future block outside model selection. Its saved outputs preserve a large two-stage linear-family run, while the visible rerun defaults use smaller presets with explicit safety gates.
+
+The feature-set screening supports `monitoring_full_wake_pre_sleep_plus_state` as the default: recent-state context improves validation behavior, while the wider state-plus-aggregate candidate pool does not justify its additional complexity.
 
 ## Stress Status Semantics
 
@@ -185,19 +188,20 @@ The curated `stress_frac_active` feature is therefore an activity/status proxy, 
 
 ## Linear Modeling Snapshot
 
-Notebook 09 evaluates linear-family regression for next-sleep `avgSleepStress` using the Stage 4 `day D -> next sleep` modeling frame. The public headline uses validation-selected rank, not future-test selection.
+Notebook 09 evaluates linear-family regression for next-sleep `avgSleepStress` using the Stage 4 `day D -> next sleep` modeling frame. The public headline uses validation-selected rank, not future-holdout ordering.
 
 - Target: `target_avgSleepStress_next_sleep`
-- Feature set: `monitoring_full_wake_pre_sleep`
-- Candidate features: `123`
-- Expanded grid: `70,056` linear-family configurations
-- Split strategy: future test block held out; repeated random train/validation holdouts inside pre-test history
-- Validation-selected rank-1 model: `Huber alpha=30 eps=1.15 | top_spearman_90 | clip=z=4 | cal=linear`
-- Mean validation MAE: `3.610`
-- Future-test MAE: `5.336`
-- Future-test R2: `0.279`
-- Best future-test dummy baseline: `dummy_mean`, MAE `6.198`, R2 `-0.064`
-- Improvement vs best dummy: `0.863` MAE points, or `13.9%`
+- Feature set: `monitoring_full_wake_pre_sleep_plus_state`
+- Candidate features: `148`
+- Initial search: `52,812` configurations evaluated on `3` random plus `3` expanding-temporal holdouts
+- Definitive rerank: `150` representative candidates evaluated on `10` random plus `8` temporal holdouts
+- Selection rule: combined validation rank led by temporal relative MAE, with temporal worst-fold behavior and random-holdout performance/stability as secondary evidence
+- Validation-selected rank-1 model: `Huber alpha=30 eps=1.05 | correlation_prune_0.9 | clip=z=4`
+- Aggregate validation MAE across the definitive `18` holdouts: `3.587`
+- Fixed-future-holdout MAE: `5.327`
+- Fixed-future-holdout R2: `0.264`
+- Preselected comparison baseline: `dummy_median`, MAE `6.326`, R2 `-0.096`
+- Improvement vs preselected baseline: `0.999` MAE points, or `15.8%`
 
 ![Stage 4 linear prediction diagnostics](img/stage4_linear_prediction_diagnostics.png)
 
@@ -205,9 +209,9 @@ Notebook 09 evaluates linear-family regression for next-sleep `avgSleepStress` u
 
 ![Stage 4 linear feature importance](img/stage4_linear_feature_importance.png)
 
-*Rank-1 diagnostics emphasize recent wake stress, pre-sleep stress, and heart-rate variability features. These associations are plausible, but not causal evidence.*
+*Rank-1 diagnostics emphasize recent wake/pre-sleep stress and current-day deviations from recent personal stress baselines. These associations are plausible, but not causal evidence.*
 
-This linear pass is useful because it turns the monitoring layer into a transparent, leakage-aware modeling baseline. It is still a single-subject exploratory result and should not be read as a reliable night-level or medical predictor.
+This linear pass is useful because it turns the monitoring layer into a transparent, leakage-aware modeling baseline and shows why temporal validation can change the chosen configuration even when absolute future-holdout MAE barely changes. It is still a single-subject exploratory result and should not be read as a reliable night-level or medical predictor.
 
 ## Modeling Readiness
 
@@ -219,7 +223,7 @@ Stage 4 demonstrates the monitoring layer by providing:
 - compact and full candidate feature tables
 - a feature catalog with families, signals, phases, windows, and cautions
 - a shared sleep-outcome modeling frame with target alignment, split policy, and named feature spaces
-- public EDA, frame-audit, and linear-model notebooks that keep quality filtering, coverage, boundary confidence, feature-readiness, validation selection, and future-test evaluation visible
+- public EDA, frame-audit, and linear-model notebooks that keep quality filtering, coverage, boundary confidence, feature-readiness, validation selection, and fixed-future-holdout evaluation visible
 
 The current public result is intentionally scoped.
 Its main value is showing a defensible bridge from raw minute-level series to drift-aware modeling: a quality-aware feature layer, validation-selected tuning, dummy-baseline comparison, and a future-holdout readout without claiming production prediction performance.
